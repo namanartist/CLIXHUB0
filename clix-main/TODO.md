@@ -1,0 +1,8 @@
+- [x] Remove Supabase fallback + supabaseRequest from db.ts
+- [x] Remove Supabase realtime subscription code from App.tsx
+- [x] Remove Supabase auth fallback (supabaseLogin/supabaseSignup) from lib/authService.ts
+- [x] Delete lib/supabase.ts and remove its usage
+- [x] Remove @supabase/supabase-js from package.json (if no longer used)
+- [x] Search repo to ensure no Supabase references remain
+- [x] Run TypeScript/build to confirm everything compiles
+- [x] Implemented complete backend CRUD API endpoints in server/index.js (Users, Clubs, Events, Venues, Registrations, Applicants, Logs, Batches, Activities, Proposals, Messages, Auth, Seeds, Socket.io)

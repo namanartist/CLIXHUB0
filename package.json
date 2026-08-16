@@ -1,0 +1,11 @@
+{
+  "name": "clix-main-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix clix-main run dev",
+    "build": "npm --prefix clix-main run build",
+    "start": "npm --prefix clix-main run start",
+    "server": "npm --prefix clix-main run server"
+  }
+}
