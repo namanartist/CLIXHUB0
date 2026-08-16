@@ -139,43 +139,51 @@ const ChatSystem: React.FC<Props> = ({ user, clubs = [], events = [], registrati
   }, [activeContext, allowedClubs, channels]);
 
   useEffect(() => {
-    const defaultSocketUrl = import.meta.env.PROD ? '' : 'http://localhost:4000';
-    const newSocket = io(import.meta.env.VITE_API_BASE?.replace('/api', '') || defaultSocketUrl);
-    setSocket(newSocket);
-    newSocket.on('connect', () => {
-      newSocket.emit('join', {
-        userId: user.id,
-        clubIds: clubs.map(c => c.id).concat(['institutional'])
-      });
-    });
+    const isVercel = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app');
+    const configuredApi = import.meta.env.VITE_API_BASE;
+    const targetSocketUrl = configuredApi?.replace('/api', '') || (!isVercel ? (import.meta.env.PROD ? '' : 'http://localhost:4000') : '');
 
-    const handleIncomingMessage = (msg: Message) => {
-      if (!msg) return;
-      if (
-        activeChannel &&
-        (msg.clubId === activeChannel.id ||
-          msg.recipientId === activeChannel.id ||
-          msg.senderId === activeChannel.id ||
-          (activeChannel.type === 'club' && msg.clubId === activeChannel.id))
-      ) {
-        setMessages(prev => (prev.find(m => m.id === msg.id) ? prev : [...prev, msg]));
-      } else {
-        const channelId = msg.clubId || msg.senderId;
-        if (channelId) {
-          setUnreadCounts(prev => ({ ...prev, [channelId]: (prev[channelId] || 0) + 1 }));
-        }
-      }
-      if (pushNotificationService.isNotificationEnabled() && msg.senderId !== user.id) {
-        const plain = decryptMessageText(msg.content, msg.clubId || msg.senderId || '');
-        pushNotificationService.notifyMessage(msg.senderName, plain || 'New message');
-      }
-    };
+    let newSocket: Socket | null = null;
+    if (targetSocketUrl) {
+      try {
+        newSocket = io(targetSocketUrl, { transports: ['websocket', 'polling'], timeout: 3000 });
+        setSocket(newSocket);
+        newSocket.on('connect', () => {
+          newSocket?.emit('join', {
+            userId: user.id,
+            clubIds: clubs.map(c => c.id).concat(['institutional'])
+          });
+        });
 
-    newSocket.on('receive_message', handleIncomingMessage);
-    newSocket.on('new_message', handleIncomingMessage);
+        const handleIncomingMessage = (msg: Message) => {
+          if (!msg) return;
+          if (
+            activeChannel &&
+            (msg.clubId === activeChannel.id ||
+              msg.recipientId === activeChannel.id ||
+              msg.senderId === activeChannel.id ||
+              (activeChannel.type === 'club' && msg.clubId === activeChannel.id))
+          ) {
+            setMessages(prev => (prev.find(m => m.id === msg.id) ? prev : [...prev, msg]));
+          } else {
+            const channelId = msg.clubId || msg.senderId;
+            if (channelId) {
+              setUnreadCounts(prev => ({ ...prev, [channelId]: (prev[channelId] || 0) + 1 }));
+            }
+          }
+          if (pushNotificationService.isNotificationEnabled() && msg.senderId !== user.id) {
+            const plain = decryptMessageText(msg.content, msg.clubId || msg.senderId || '');
+            pushNotificationService.notifyMessage(msg.senderName, plain || 'New message');
+          }
+        };
+
+        newSocket.on('receive_message', handleIncomingMessage);
+        newSocket.on('new_message', handleIncomingMessage);
+      } catch (e) {}
+    }
 
     return () => {
-      newSocket.disconnect();
+      if (newSocket) newSocket.disconnect();
     };
   }, [user.id, activeChannel, clubs]);
 

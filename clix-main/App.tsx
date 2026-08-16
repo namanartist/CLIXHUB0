@@ -236,22 +236,25 @@ const App: React.FC = () => {
       refreshData();
     }, 1000);
 
-    // Instant Socket.io event sync (0ms latency on mutations)
-    const socketUrl = import.meta.env.VITE_API_BASE || (import.meta.env.PROD ? window.location.origin : 'http://localhost:4000');
+    // Instant Socket.io event sync (Only connect to WebSocket servers, not serverless hosts like Vercel)
+    const isVercel = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app');
+    const configuredApi = import.meta.env.VITE_API_BASE;
+    const socketUrl = configuredApi || (!isVercel ? (import.meta.env.PROD ? '' : 'http://localhost:4000') : '');
+
     let socket: any;
-    try {
-      socket = io(socketUrl, { transports: ['websocket', 'polling'] });
-      const entities = ['users', 'clubs', 'events', 'venues', 'registrations', 'certificates', 'batches', 'applicants', 'proposals', 'activities', 'logs'];
-      entities.forEach(ent => {
-        socket.on(`${ent}:change`, () => {
+    if (socketUrl) {
+      try {
+        socket = io(socketUrl, { transports: ['websocket', 'polling'], timeout: 3000 });
+        const entities = ['users', 'clubs', 'events', 'venues', 'registrations', 'certificates', 'batches', 'applicants', 'proposals', 'activities', 'logs'];
+        entities.forEach(ent => {
+          socket.on(`${ent}:change`, () => {
+            refreshData();
+          });
+        });
+        socket.on('db:sync', () => {
           refreshData();
         });
-      });
-      socket.on('db:sync', () => {
-        refreshData();
-      });
-    } catch (e) {
-      console.warn('Socket realtime connection error:', e);
+      } catch (e) {}
     }
 
     const handleFocus = () => refreshData();

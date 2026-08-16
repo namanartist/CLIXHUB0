@@ -547,7 +547,11 @@ io.on('connection', (socket) => {
 });
 
 // ─── START SERVER ─────────────────────────────────────────────────────────────
-server.listen(PORT, () => {
-  console.log(`⚡ [CLIX Hub Server] Running on http://localhost:${PORT}`);
-  console.log(`🔗 [Database Backend] Connected to Supabase at ${SUPABASE_URL}`);
-});
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  server.listen(PORT, () => {
+    console.log(`⚡ [CLIX Hub Server] Running on http://localhost:${PORT}`);
+    console.log(`🔗 [Database Backend] Connected to Supabase at ${SUPABASE_URL}`);
+  });
+}
+
+export default app;
