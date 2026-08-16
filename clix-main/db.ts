@@ -2,7 +2,7 @@ import { Club, Applicant, Registration, Event, AuditLog, User, Role, ClubRole, I
 import { DEMO_USERS, DEMO_CLUBS, DEMO_EVENTS, DEMO_VENUES, DEMO_REGISTRATIONS, DEMO_APPLICANTS, DEMO_LOGS, DEMO_BATCHES, DEMO_PROPOSALS } from './constants';
 import { storage } from './lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { supabase } from './lib/supabaseClient';
+import { firestoreGetAll, firestoreGetOne, firestoreSave, firestoreDelete, firestoreQueryWhere } from './lib/firestoreDb';
 
 const defaultApiBase = import.meta.env.PROD ? '' : 'http://localhost:4000';
 const API_BASE = `${import.meta.env.VITE_API_BASE || defaultApiBase}/api`;
@@ -37,7 +37,7 @@ class InstitutionalAPI {
                 }).catch(() => {});
             }
         } catch (e) {
-            console.log('Using local offline cache fabric.');
+            console.log('Using Firebase Firestore cloud fabric.');
         }
         this.hasInitialized = true;
     }
@@ -51,14 +51,21 @@ class InstitutionalAPI {
                 localStorage.setItem('ccms_offline_proposals', JSON.stringify(serverProposals));
                 return serverProposals;
             }
-        } catch (e) {
-            // fallback
+        } catch (e) {}
+
+        const firestoreProposals = await firestoreGetAll<Proposal>('proposals');
+        if (firestoreProposals.length > 0) {
+            localStorage.setItem('ccms_offline_proposals', JSON.stringify(firestoreProposals));
+            return firestoreProposals;
         }
+
         return this.offlineFallbackGet('ccms_offline_proposals', DEMO_PROPOSALS);
     }
 
     async saveProposal(proposal: Proposal): Promise<Proposal> {
-        // Save to localStorage for robust offline execution in development
+        // Save to Firestore and local storage
+        firestoreSave('proposals', proposal).catch(() => {});
+        
         let offlineList: Proposal[] = [];
         try {
             const listStr = localStorage.getItem('ccms_offline_proposals');
@@ -79,7 +86,7 @@ class InstitutionalAPI {
                 body: JSON.stringify(proposal)
             });
         } catch (e) {
-            return proposal; // Return successfully so frontend state updates and doesn't crash
+            return proposal;
         }
     }
 
@@ -108,34 +115,34 @@ class InstitutionalAPI {
                 console.warn(`API Error (${path}):`, err);
             }
         } catch (netErr) {
-            // Direct Browser Supabase Online Fallback
+            // Direct Browser Firebase Firestore Cloud Fallback
             try {
                 const cleanPath = path.replace(/^\//, '').split('?')[0];
                 const parts = cleanPath.split('/');
-                const table = parts[0];
+                const collectionName = parts[0];
                 const id = parts[1];
                 const method = options?.method?.toUpperCase() || 'GET';
 
-                if (table && ['users', 'clubs', 'events', 'venues', 'registrations', 'certificates', 'batches', 'applicants', 'proposals', 'activities', 'logs', 'messages', 'notifications'].includes(table)) {
+                if (collectionName && ['users', 'clubs', 'events', 'venues', 'registrations', 'certificates', 'batches', 'applicants', 'proposals', 'activities', 'logs', 'messages', 'notifications'].includes(collectionName)) {
                     if (method === 'GET') {
                         if (id) {
-                            const { data, error } = await supabase.from(table).select('*').eq('id', id).single();
-                            if (!error && data) return data;
+                            const item = await firestoreGetOne(collectionName, id);
+                            if (item) return item;
                         } else {
-                            const { data, error } = await supabase.from(table).select('*');
-                            if (!error && Array.isArray(data) && data.length > 0) return data;
+                            const list = await firestoreGetAll(collectionName);
+                            if (Array.isArray(list) && list.length > 0) return list;
                         }
                     } else if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
                         const body = options?.body ? JSON.parse(options.body as string) : {};
-                        const { data, error } = await supabase.from(table).upsert([body]).select();
-                        if (!error && data) return data[0] || body;
+                        const saved = await firestoreSave(collectionName, body);
+                        return saved;
                     } else if (method === 'DELETE' && id) {
-                        await supabase.from(table).delete().eq('id', id);
+                        await firestoreDelete(collectionName, id);
                         return { success: true, id };
                     }
                 }
-            } catch (supaErr) {
-                console.warn(`Supabase Direct fallback error (${path}):`, supaErr);
+            } catch (firestoreErr) {
+                console.warn(`Firestore direct fallback error (${path}):`, firestoreErr);
             }
         }
 

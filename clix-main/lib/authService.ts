@@ -1,6 +1,6 @@
 import { User, Role } from '../types';
 import { DEMO_USERS } from '../constants';
-import { supabase } from './supabaseClient';
+import { firestoreQueryWhere, firestoreSave } from './firestoreDb';
 
 const defaultApiBase = import.meta.env.PROD ? '' : 'http://localhost:4000';
 const API_BASE = `${import.meta.env.VITE_API_BASE || defaultApiBase}/api`;
@@ -58,17 +58,17 @@ class AuthService {
             }
         } catch (netErr) {}
 
-        // Fallback: Check Supabase online database or demo users
+        // Fallback: Check Firebase Firestore online database or demo users
         const emailLower = credentials.email.toLowerCase();
         try {
-            const { data, error } = await supabase.from('users').select('*').eq('email', emailLower).limit(1);
-            if (!error && data && data.length > 0) {
-                const user = data[0] as User;
+            const users = await firestoreQueryWhere<User>('users', 'email', emailLower);
+            if (users && users.length > 0) {
+                const user = users[0];
                 const authRes = { token: `jwt_${user.id}_${Date.now()}`, user };
                 this.setAuthData(authRes);
                 return authRes;
             }
-        } catch (supaErr) {}
+        } catch (firestoreErr) {}
 
         const matchedDemo = DEMO_USERS.find(u => u.email.toLowerCase() === emailLower);
         if (matchedDemo) {
@@ -98,7 +98,7 @@ class AuthService {
             }
         } catch (netErr) {}
 
-        // Fallback: Create user in Supabase online directly
+        // Fallback: Create user in Firebase Firestore online directly
         const newUser: User = {
             id: `usr_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
             name: credentials.name,
@@ -111,7 +111,7 @@ class AuthService {
         };
 
         try {
-            await supabase.from('users').upsert([newUser]);
+            await firestoreSave('users', newUser);
         } catch (e) {}
 
         const authRes = { token: `jwt_${newUser.id}_${Date.now()}`, user: newUser };
