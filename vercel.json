@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "installCommand": "npm --prefix clix-main install",
   "buildCommand": "npm --prefix clix-main run build",
   "outputDirectory": "clix-main/dist",
   "rewrites": [
