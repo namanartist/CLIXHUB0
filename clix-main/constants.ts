@@ -10,7 +10,7 @@ export const DEMO_USERS: User[] = [
     department: 'Directorate',
     clubMemberships: [],
     photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-    skills: ['Institutional Governance', 'Accreditation', 'Strategic Policy']
+    skills: ['Institutional Governance', 'Accreditation', 'Strategic Policy', 'Budget Allocation']
   },
   {
     id: 'usr_dean_1',
@@ -21,7 +21,7 @@ export const DEMO_USERS: User[] = [
     department: 'Student Affairs',
     clubMemberships: [],
     photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
-    skills: ['Student Mentorship', 'Council Approvals', 'Budget Governance']
+    skills: ['Student Mentorship', 'Council Approvals', 'Budget Governance', 'Disciplinary Oversight']
   },
   {
     id: 'usr_faculty_1',
@@ -32,7 +32,18 @@ export const DEMO_USERS: User[] = [
     department: 'Computer Science & Engineering',
     clubMemberships: [],
     photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
-    skills: ['Event Oversight', 'Curriculum Design', 'AI Research']
+    skills: ['Event Oversight', 'Curriculum Design', 'AI Research', 'Faculty Approvals']
+  },
+  {
+    id: 'usr_faculty_demo',
+    name: 'Demo Faculty Coordinator',
+    email: 'faculty@mitsgwl.ac.in',
+    globalRole: Role.FACULTY,
+    designation: 'Professor & Institutional Coordinator',
+    department: 'Computer Science & Engineering',
+    clubMemberships: [],
+    photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
+    skills: ['Event Oversight', 'Faculty Approvals', 'Budget Signoff', 'Mentorship']
   },
   {
     id: 'usr_student_1',
@@ -45,10 +56,32 @@ export const DEMO_USERS: User[] = [
     department: 'CSE',
     clubMemberships: [
       { clubId: 'club-acm', role: ClubRole.PRESIDENT, joinedAt: '2023-08-01T00:00:00.000Z' },
-      { clubId: 'club-webdev', role: ClubRole.TECH_HEAD, joinedAt: '2023-09-15T00:00:00.000Z' }
+      { clubId: 'club-webdev', role: ClubRole.TECH_HEAD, joinedAt: '2023-09-15T00:00:00.000Z' },
+      { clubId: 'club-robotics', role: ClubRole.MEMBER, joinedAt: '2023-10-01T00:00:00.000Z' },
+      { clubId: 'club-ai', role: ClubRole.VICE_PRESIDENT, joinedAt: '2023-10-10T00:00:00.000Z' },
+      { clubId: 'club-design', role: ClubRole.MEMBER, joinedAt: '2023-11-01T00:00:00.000Z' }
     ],
     photoUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=80',
-    skills: ['Full-Stack Systems', 'Cloud Architecture', 'React', 'Node.js']
+    skills: ['Full-Stack Systems', 'Cloud Architecture', 'React', 'Node.js', 'PostgreSQL', 'TypeScript']
+  },
+  {
+    id: 'usr_student_demo',
+    name: 'Demo Student Leader',
+    email: 'student@mitsgwl.ac.in',
+    globalRole: Role.STUDENT,
+    enrollmentNumber: '0901CS221001',
+    rollNumber: '0901CS221001',
+    branch: 'Computer Science & Engineering',
+    department: 'CSE',
+    clubMemberships: [
+      { clubId: 'club-acm', role: ClubRole.PRESIDENT, joinedAt: '2023-08-01T00:00:00.000Z' },
+      { clubId: 'club-webdev', role: ClubRole.TECH_HEAD, joinedAt: '2023-09-15T00:00:00.000Z' },
+      { clubId: 'club-robotics', role: ClubRole.MEMBER, joinedAt: '2023-10-01T00:00:00.000Z' },
+      { clubId: 'club-ai', role: ClubRole.VICE_PRESIDENT, joinedAt: '2023-10-10T00:00:00.000Z' },
+      { clubId: 'club-design', role: ClubRole.MEMBER, joinedAt: '2023-11-01T00:00:00.000Z' }
+    ],
+    photoUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=80',
+    skills: ['Full-Stack Systems', 'Cloud Architecture', 'React', 'Node.js', 'Certifications', 'Event Operations']
   },
   {
     id: 'usr_student_2',
@@ -60,10 +93,11 @@ export const DEMO_USERS: User[] = [
     branch: 'Information Technology',
     department: 'IT',
     clubMemberships: [
-      { clubId: 'club-robotics', role: ClubRole.PRESIDENT, joinedAt: '2023-08-10T00:00:00.000Z' }
+      { clubId: 'club-robotics', role: ClubRole.PRESIDENT, joinedAt: '2023-08-10T00:00:00.000Z' },
+      { clubId: 'club-acm', role: ClubRole.MEMBER, joinedAt: '2023-09-01T00:00:00.000Z' }
     ],
     photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
-    skills: ['Embedded Systems', 'ROS', 'Microcontrollers', '3D CAD']
+    skills: ['Embedded Systems', 'ROS', 'Microcontrollers', '3D CAD', 'Autonomous Drones']
   },
   {
     id: 'usr_student_3',
@@ -75,10 +109,11 @@ export const DEMO_USERS: User[] = [
     branch: 'Electronics & Communication',
     department: 'ECE',
     clubMemberships: [
-      { clubId: 'club-design', role: ClubRole.PRESIDENT, joinedAt: '2023-09-01T00:00:00.000Z' }
+      { clubId: 'club-design', role: ClubRole.PRESIDENT, joinedAt: '2023-09-01T00:00:00.000Z' },
+      { clubId: 'club-webdev', role: ClubRole.CONTENT_HEAD, joinedAt: '2023-09-20T00:00:00.000Z' }
     ],
     photoUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
-    skills: ['UI/UX Design', 'Figma', 'Brand Identity', 'Motion Graphics']
+    skills: ['UI/UX Design', 'Figma', 'Brand Identity', 'Motion Graphics', 'Design Systems']
   },
   {
     id: 'usr_student_4',
@@ -90,10 +125,11 @@ export const DEMO_USERS: User[] = [
     branch: 'Artificial Intelligence & Data Science',
     department: 'AIDS',
     clubMemberships: [
-      { clubId: 'club-ai', role: ClubRole.PRESIDENT, joinedAt: '2023-09-10T00:00:00.000Z' }
+      { clubId: 'club-ai', role: ClubRole.PRESIDENT, joinedAt: '2023-09-10T00:00:00.000Z' },
+      { clubId: 'club-acm', role: ClubRole.TECH_HEAD, joinedAt: '2023-09-15T00:00:00.000Z' }
     ],
     photoUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=80',
-    skills: ['PyTorch', 'Computer Vision', 'LLMs', 'Data Pipelines']
+    skills: ['PyTorch', 'Computer Vision', 'LLMs', 'Data Pipelines', 'Deep Learning']
   }
 ];
 

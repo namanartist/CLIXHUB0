@@ -134,14 +134,14 @@ class AuthService {
             }
         } catch (netErr) {}
 
-        const emailLower = email.toLowerCase();
-        const demoUser = DEMO_USERS.find(u => u.email.toLowerCase() === emailLower) || {
-            id: `usr_demo_${Date.now()}`,
-            name: email.split('@')[0].toUpperCase(),
-            email: emailLower,
-            globalRole: emailLower.includes('admin') ? Role.SUPER_ADMIN : emailLower.includes('dean') ? Role.DEAN : emailLower.includes('faculty') ? Role.FACULTY : Role.STUDENT,
-            clubMemberships: []
-        };
+        const emailLower = email.toLowerCase().trim();
+        const demoUser = DEMO_USERS.find(u =>
+            u.email.toLowerCase() === emailLower ||
+            (emailLower.includes('student') && (u.email === 'student@mitsgwl.ac.in' || u.email === 'naman@mitsgwl.ac.in')) ||
+            (emailLower.includes('faculty') && (u.email === 'faculty@mitsgwl.ac.in' || u.email === 'priya.verma@mitsgwl.ac.in')) ||
+            (emailLower.includes('dean') && u.email === 'dean.sw@mitsgwl.ac.in') ||
+            (emailLower.includes('admin') && u.email === 'admin@mitsgwl.ac.in')
+        ) || DEMO_USERS[0];
 
         const authRes = { token: `demo:${demoUser.id}`, user: demoUser };
         this.setAuthData(authRes);

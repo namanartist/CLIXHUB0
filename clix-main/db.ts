@@ -254,7 +254,15 @@ class InstitutionalAPI {
     }
 
     async demoLogin(email: string): Promise<{ token: string, user: User }> {
-        const demoUser = DEMO_USERS.find(user => user.email.toLowerCase() === email.toLowerCase());
+        const emailLower = email.toLowerCase().trim();
+        const demoUser = DEMO_USERS.find(u =>
+            u.email.toLowerCase() === emailLower ||
+            (emailLower.includes('student') && (u.email === 'student@mitsgwl.ac.in' || u.email === 'naman@mitsgwl.ac.in')) ||
+            (emailLower.includes('faculty') && (u.email === 'faculty@mitsgwl.ac.in' || u.email === 'priya.verma@mitsgwl.ac.in')) ||
+            (emailLower.includes('dean') && u.email === 'dean.sw@mitsgwl.ac.in') ||
+            (emailLower.includes('admin') && u.email === 'admin@mitsgwl.ac.in')
+        ) || DEMO_USERS[0];
+
         if (demoUser) {
             const data = { token: `demo:${demoUser.id}`, user: demoUser };
             this.setToken(data.token);
