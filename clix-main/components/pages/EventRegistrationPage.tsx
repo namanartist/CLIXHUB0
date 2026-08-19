@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   Sparkles,
   CreditCard,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface Props {
@@ -27,7 +28,7 @@ interface Props {
   clubs: Club[];
   registrations: Registration[];
   user: User | null;
-  onRegister: (eventId: string) => Promise<Registration | undefined>;
+  onRegister: (eventId: string, details?: any) => Promise<Registration | undefined>;
 }
 
 const EventRegistrationPage: React.FC<Props> = ({

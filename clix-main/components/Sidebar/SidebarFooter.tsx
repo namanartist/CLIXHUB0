@@ -1,6 +1,7 @@
 import React from 'react';
 import { UserCog } from 'lucide-react';
 import { User } from '../../types';
+import InstallAppButton from '../InstallAppButton';
 
 interface SidebarFooterProps {
   user: User;
@@ -27,15 +28,18 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
             <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest leading-none mt-1">Authenticated</p>
           </div>
         </div>
-        <button
-          onClick={() => { onContextChange('Global'); setActiveTab('profile'); onClose(); }}
-          className={`w-full group py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${isDarkMode
-            ? 'bg-blue-600 text-white hover:bg-blue-700'
-            : 'bg-white text-blue-600 shadow-xl shadow-blue-500/5 hover:bg-blue-600 hover:text-white border border-blue-500/10'
-            }`}
-        >
-          <UserCog size={16} className="transition-transform group-hover:rotate-45" /> Profile Settings
-        </button>
+        <div className="space-y-2">
+          <InstallAppButton variant="sidebar" />
+          <button
+            onClick={() => { onContextChange('Global'); setActiveTab('profile'); onClose(); }}
+            className={`w-full group py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${isDarkMode
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-white text-blue-600 shadow-xl shadow-blue-500/5 hover:bg-blue-600 hover:text-white border border-blue-500/10'
+              }`}
+          >
+            <UserCog size={16} className="transition-transform group-hover:rotate-45" /> Profile Settings
+          </button>
+        </div>
 
         {/* Premium Attribution branding */}
         <div className="mt-4 pt-4 text-center border-t border-[var(--border-color)] opacity-60 hover:opacity-100 transition-opacity">

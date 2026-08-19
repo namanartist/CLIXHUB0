@@ -66,9 +66,14 @@ const ClubGrid: React.FC<any> = ({ filteredClubs, handleClubClick }) => (
   </section>
 );
 
-interface Props { clubs: Club[]; onEnterClub: (id: string) => void; isDarkMode: boolean; }
+interface Props {
+  clubs: Club[];
+  onEnterClub: (id: string) => void;
+  isDarkMode: boolean;
+  onBack?: () => void;
+}
 
-const ClubDirectoryPublic: React.FC<Props> = ({ clubs, onEnterClub, isDarkMode }) => {
+const ClubDirectoryPublic: React.FC<Props> = ({ clubs, onEnterClub, isDarkMode, onBack }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const categories = ['All', 'Technical', 'Cultural', 'Social', 'Sports'];

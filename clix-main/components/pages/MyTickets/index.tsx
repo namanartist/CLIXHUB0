@@ -14,7 +14,7 @@ interface Props {
 }
 
 const MyTickets: React.FC<Props> = ({ registrations, events, clubs, isDarkMode }) => {
-  const [filter, setFilter] = useState<'active' | 'past'>('active');
+  const [filter, setFilter] = useState<'all' | 'active' | 'past'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [selectedReg, setSelectedReg] = useState<Registration | null>(null);
@@ -80,10 +80,10 @@ const MyTickets: React.FC<Props> = ({ registrations, events, clubs, isDarkMode }
 
   const filteredRegistrations = registrations.filter(reg => {
     const event = events.find(e => e.id === reg.eventId);
-    if (!event) return false;
+    if (!event) return true; // Show pass even if event metadata is loading
 
     const eventDate = new Date(event.date);
-    const isPast = eventDate < now && eventDate.toDateString() !== now.toDateString();
+    const isPast = !isNaN(eventDate.getTime()) && eventDate < now && eventDate.toDateString() !== now.toDateString();
 
     if (filter === 'active' && isPast) return false;
     if (filter === 'past' && !isPast) return false;
@@ -93,15 +93,16 @@ const MyTickets: React.FC<Props> = ({ registrations, events, clubs, isDarkMode }
       return (
         event.title.toLowerCase().includes(term) ||
         (clubs.find(c => c.id === event.clubId)?.name || '').toLowerCase().includes(term) ||
-        reg.ticketId?.toLowerCase().includes(term)
+        reg.ticketId?.toLowerCase().includes(term) ||
+        reg.studentName?.toLowerCase().includes(term)
       );
     }
 
     return true;
   }).sort((a, b) => {
-    const dateA = new Date(events.find(e => e.id === a.eventId)?.date || '').getTime();
-    const dateB = new Date(events.find(e => e.id === b.eventId)?.date || '').getTime();
-    return filter === 'active' ? dateA - dateB : dateB - dateA;
+    const dateA = new Date(events.find(e => e.id === a.eventId)?.date || '').getTime() || 0;
+    const dateB = new Date(events.find(e => e.id === b.eventId)?.date || '').getTime() || 0;
+    return filter === 'past' ? dateB - dateA : dateA - dateB;
   });
 
   return (
@@ -112,6 +113,7 @@ const MyTickets: React.FC<Props> = ({ registrations, events, clubs, isDarkMode }
         setSearchTerm={setSearchTerm}
         filter={filter}
         setFilter={setFilter}
+        totalCount={registrations.length}
       />
 
       <TicketsGrid

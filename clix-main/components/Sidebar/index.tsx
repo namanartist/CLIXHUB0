@@ -33,10 +33,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside className={`
-        fixed inset-y-0 left-0 z-[70] w-full sm:w-80 flex flex-col p-4 sm:p-6
+        fixed inset-y-0 left-0 z-[70] w-[88vw] max-w-[320px] sm:w-80 flex flex-col p-3 sm:p-6
         transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
         md:translate-x-0 md:relative md:h-screen
-        transition-all duration-700 cubic-bezier(0.34, 1.56, 0.64, 1)
+        transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)
       `}>
         <div className="w-full h-full rounded-[2rem] sm:rounded-[3rem] flex flex-col overflow-hidden uni-glass-strong shadow-glass-lg">
           <SidebarHeader 

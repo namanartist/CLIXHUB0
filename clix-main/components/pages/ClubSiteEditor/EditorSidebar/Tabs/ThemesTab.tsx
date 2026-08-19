@@ -1,6 +1,6 @@
 import React from 'react';
 import { Palette, CheckCircle2, Wand2, Sparkles, Loader2, Sliders, RefreshCw } from 'lucide-react';
-import { Club } from '../../../../types';
+import { Club } from '@/types';
 
 export const PRESET_THEMES = [
   { id: 'cyberpunk-blue',  name: 'Cyberpunk Blue',  color: '#0055FF', desc: 'Electric high-contrast precision' },

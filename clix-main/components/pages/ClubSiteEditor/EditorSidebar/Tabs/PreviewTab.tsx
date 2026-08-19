@@ -1,6 +1,6 @@
 import React from 'react';
 import { Monitor, Smartphone } from 'lucide-react';
-import { Club, CustomSection } from '../../../../types';
+import { Club, CustomSection } from '@/types';
 
 interface PreviewTabProps {
   formData: Club;

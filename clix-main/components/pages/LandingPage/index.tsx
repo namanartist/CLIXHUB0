@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Event, Club } from '../../types';
+import { Event, Club } from '@/types';
 import Footer from '../../Footer';
 import { LandingNavbar } from './LandingNavbar';
 import { HeroSection } from './Sections/HeroSection';

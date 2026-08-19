@@ -4,8 +4,7 @@ import { storage } from './lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firestoreGetAll, firestoreGetOne, firestoreSave, firestoreDelete, firestoreQueryWhere } from './lib/firestoreDb';
 
-const defaultApiBase = import.meta.env.PROD ? '' : 'http://localhost:4000';
-const API_BASE = `${import.meta.env.VITE_API_BASE || defaultApiBase}/api`;
+import { API_BASE } from './lib/apiConfig';
 
 class InstitutionalAPI {
     private hasInitialized = false;
@@ -14,30 +13,32 @@ class InstitutionalAPI {
         if (this.hasInitialized) return;
         try {
             const res = await fetch(`${API_BASE}/health`);
-            const status = await res.json();
-            console.log('Backend connection status:', status);
+            if (res.ok) {
+                const status = await res.json();
+                console.log('Backend connection status:', status);
 
-            // Auto-sync seed data if server tables are unpopulated
-            const existingClubs = await fetch(`${API_BASE}/clubs`).then(r => r.json()).catch(() => []);
-            if (!Array.isArray(existingClubs) || existingClubs.length === 0) {
-                await fetch(`${API_BASE}/db/seed`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        users: DEMO_USERS,
-                        clubs: DEMO_CLUBS,
-                        events: DEMO_EVENTS,
-                        venues: DEMO_VENUES,
-                        proposals: DEMO_PROPOSALS,
-                        batches: DEMO_BATCHES,
-                        registrations: DEMO_REGISTRATIONS,
-                        applicants: DEMO_APPLICANTS,
-                        logs: DEMO_LOGS
-                    })
-                }).catch(() => {});
+                // Auto-sync seed data if server tables are unpopulated
+                const existingClubs = await fetch(`${API_BASE}/clubs`).then(r => r.ok ? r.json() : []).catch(() => []);
+                if (!Array.isArray(existingClubs) || existingClubs.length === 0) {
+                    await fetch(`${API_BASE}/db/seed`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            users: DEMO_USERS,
+                            clubs: DEMO_CLUBS,
+                            events: DEMO_EVENTS,
+                            venues: DEMO_VENUES,
+                            proposals: DEMO_PROPOSALS,
+                            batches: DEMO_BATCHES,
+                            registrations: DEMO_REGISTRATIONS,
+                            applicants: DEMO_APPLICANTS,
+                            logs: DEMO_LOGS
+                        })
+                    }).catch(() => {});
+                }
             }
         } catch (e) {
-            console.log('Using Firebase Firestore cloud fabric.');
+            console.log('Using Supabase cloud fabric.');
         }
         this.hasInitialized = true;
     }
@@ -53,17 +54,17 @@ class InstitutionalAPI {
             }
         } catch (e) {}
 
-        const firestoreProposals = await firestoreGetAll<Proposal>('proposals');
-        if (firestoreProposals.length > 0) {
-            localStorage.setItem('ccms_offline_proposals', JSON.stringify(firestoreProposals));
-            return firestoreProposals;
+        const cloudProposals = await firestoreGetAll<Proposal>('proposals');
+        if (cloudProposals.length > 0) {
+            localStorage.setItem('ccms_offline_proposals', JSON.stringify(cloudProposals));
+            return cloudProposals;
         }
 
         return this.offlineFallbackGet('ccms_offline_proposals', DEMO_PROPOSALS);
     }
 
     async saveProposal(proposal: Proposal): Promise<Proposal> {
-        // Save to Firestore and local storage
+        // Save to Supabase and local storage
         firestoreSave('proposals', proposal).catch(() => {});
         
         let offlineList: Proposal[] = [];
@@ -105,50 +106,69 @@ class InstitutionalAPI {
             ...options?.headers
         };
 
+        // Primary: Query Express / Serverless backend
         try {
             const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
             if (res.ok) {
                 return await res.json();
             }
-            if (res.status !== 401 && res.status !== 404) {
-                const err = await res.json().catch(() => ({ error: res.statusText }));
-                console.warn(`API Error (${path}):`, err);
-            }
-        } catch (netErr) {
-            // Direct Browser Firebase Firestore Cloud Fallback
-            try {
-                const cleanPath = path.replace(/^\//, '').split('?')[0];
-                const parts = cleanPath.split('/');
-                const collectionName = parts[0];
-                const id = parts[1];
-                const method = options?.method?.toUpperCase() || 'GET';
+        } catch (netErr) {}
 
-                if (collectionName && ['users', 'clubs', 'events', 'venues', 'registrations', 'certificates', 'batches', 'applicants', 'proposals', 'activities', 'logs', 'messages', 'notifications'].includes(collectionName)) {
-                    if (method === 'GET') {
-                        if (id) {
-                            const item = await firestoreGetOne(collectionName, id);
-                            if (item) return item;
-                        } else {
-                            const list = await firestoreGetAll(collectionName);
-                            if (Array.isArray(list) && list.length > 0) return list;
-                        }
-                    } else if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
-                        const body = options?.body ? JSON.parse(options.body as string) : {};
-                        const saved = await firestoreSave(collectionName, body);
-                        return saved;
-                    } else if (method === 'DELETE' && id) {
-                        await firestoreDelete(collectionName, id);
-                        return { success: true, id };
+        // Direct Browser Supabase Cloud Fallback
+        try {
+            const cleanPath = path.replace(/^\//, '').split('?')[0];
+            const parts = cleanPath.split('/');
+            const collectionName = parts[0];
+            const id = parts[1];
+            const method = options?.method?.toUpperCase() || 'GET';
+
+            if (collectionName && ['users', 'clubs', 'events', 'venues', 'registrations', 'certificates', 'batches', 'applicants', 'proposals', 'activities', 'logs', 'messages', 'notifications'].includes(collectionName)) {
+                if (method === 'GET') {
+                    if (id) {
+                        const item = await firestoreGetOne(collectionName, id);
+                        if (item) return item;
+                    } else {
+                        const list = await firestoreGetAll(collectionName);
+                        if (Array.isArray(list)) return list;
                     }
+                } else if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+                    const body = options?.body ? JSON.parse(options.body as string) : {};
+                    const saved = await firestoreSave(collectionName, body);
+                    return saved;
+                } else if (method === 'DELETE' && id) {
+                    await firestoreDelete(collectionName, id);
+                    return { success: true, id };
                 }
-            } catch (firestoreErr) {
-                console.warn(`Firestore direct fallback error (${path}):`, firestoreErr);
             }
+        } catch (cloudErr) {
+            console.warn(`Supabase direct cloud fallback error (${path}):`, cloudErr);
         }
 
         throw new Error('Request failed and fallback exhausted');
     }
 
+
+
+    private safeSetItem(key: string, value: string) {
+        try {
+            localStorage.setItem(key, value);
+        } catch (e: any) {
+            if (e?.name === 'QuotaExceededError' || e?.code === 22 || e?.code === 1014) {
+                console.warn(`[Storage] LocalStorage quota exceeded while saving ${key}. Evicting old cache entries...`);
+                try {
+                    const disposableKeys = ['ccms_offline_logs', 'ccms_offline_activities', 'ccms_offline_messages', 'ccms_print_pool'];
+                    for (const dKey of disposableKeys) {
+                        if (dKey !== key) {
+                            localStorage.removeItem(dKey);
+                        }
+                    }
+                    localStorage.setItem(key, value);
+                } catch (retryErr) {
+                    console.warn(`[Storage] Secondary storage eviction failed for ${key}:`, retryErr);
+                }
+            }
+        }
+    }
 
     private withDemoFallback<T>(data: T[], fallback: T[] = []): T[] {
         return (Array.isArray(data) && data.length > 0) ? data : fallback;
@@ -163,9 +183,7 @@ class InstitutionalAPI {
             }
         } catch {}
         if (Array.isArray(demoFallback) && demoFallback.length > 0) {
-            try {
-                localStorage.setItem(key, JSON.stringify(demoFallback));
-            } catch {}
+            this.safeSetItem(key, JSON.stringify(demoFallback));
             return demoFallback;
         }
         return [];
@@ -189,7 +207,7 @@ class InstitutionalAPI {
         if (idx >= 0) offlineList[idx] = item;
         else offlineList.push(item);
         
-        localStorage.setItem(key, JSON.stringify(offlineList));
+        this.safeSetItem(key, JSON.stringify(offlineList));
         return item;
     }
     
@@ -200,7 +218,7 @@ class InstitutionalAPI {
                 const parsed = JSON.parse(listStr);
                 if (Array.isArray(parsed)) {
                     const filtered = parsed.filter(x => x.id !== id);
-                    localStorage.setItem(key, JSON.stringify(filtered));
+                    this.safeSetItem(key, JSON.stringify(filtered));
                 }
             }
         } catch {}
@@ -251,10 +269,21 @@ class InstitutionalAPI {
     }
 
 
-    async seedDatabase(data: any) {
+    async seedDatabase(data?: any) {
+        const payload = data || {
+            users: DEMO_USERS,
+            clubs: DEMO_CLUBS,
+            events: DEMO_EVENTS,
+            venues: DEMO_VENUES,
+            proposals: DEMO_PROPOSALS,
+            batches: DEMO_BATCHES,
+            registrations: DEMO_REGISTRATIONS,
+            applicants: DEMO_APPLICANTS,
+            logs: DEMO_LOGS
+        };
         return await this.request('/db/seed', {
             method: 'POST',
-            body: JSON.stringify(data),
+            body: JSON.stringify(payload),
         });
     }
 
@@ -397,14 +426,25 @@ class InstitutionalAPI {
 
     // ─── EVENTS ─────────────────────────────────────────────────────────────
     async getEvents(): Promise<Event[]> {
+        let list: Event[] = [];
         try {
             const events = await this.request('/events');
             if (Array.isArray(events) && events.length > 0) {
-                try { localStorage.setItem('ccms_offline_events', JSON.stringify(events)); } catch (e) {}
-                return events;
+                list = events;
             }
         } catch (e) {}
-        return this.offlineFallbackGet('ccms_offline_events', DEMO_EVENTS);
+        if (!list || list.length === 0) {
+            list = this.offlineFallbackGet('ccms_offline_events', DEMO_EVENTS);
+        }
+        // Ensure standard flagship events (Innovation War, Test, Paid Test) are available
+        const existingIds = new Set(list.map(e => e.id));
+        DEMO_EVENTS.forEach(demo => {
+            if (!existingIds.has(demo.id)) {
+                list.push(demo);
+            }
+        });
+        try { localStorage.setItem('ccms_offline_events', JSON.stringify(list)); } catch (e) {}
+        return list;
     }
 
     async saveEvent(event: Event) {

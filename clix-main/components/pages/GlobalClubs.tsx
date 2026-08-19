@@ -5,10 +5,11 @@ import { Globe, Users, ExternalLink, ShieldCheck, Search, Zap, UserPlus } from '
 interface Props {
   clubs: Club[];
   isDarkMode: boolean;
-  onEnterClub: (id: string) => void;
+  onEnterClub: (id: string) => void | Promise<void>;
+  onBack?: () => void;
 }
 
-const GlobalClubs: React.FC<Props> = ({ clubs, isDarkMode, onEnterClub }) => {
+const GlobalClubs: React.FC<Props> = ({ clubs, isDarkMode, onEnterClub, onBack }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const categories = ['All', 'Technical', 'Cultural', 'Social', 'Sports'];

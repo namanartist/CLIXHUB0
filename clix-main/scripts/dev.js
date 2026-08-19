@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -13,11 +14,33 @@ const server = spawn(process.execPath, ['server/index.js'], {
   stdio: 'inherit',
 });
 
-const viteBin = path.join(rootDir, 'node_modules', 'vite', 'bin', 'vite.js');
-const vite = spawn(process.execPath, [viteBin], {
-  cwd: rootDir,
-  stdio: 'inherit',
-});
+function findViteBin(startDir) {
+  let currentDir = startDir;
+  while (true) {
+    const candidate = path.join(currentDir, 'node_modules', 'vite', 'bin', 'vite.js');
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      break;
+    }
+    currentDir = parentDir;
+  }
+  return null;
+}
+
+const viteBin = findViteBin(rootDir);
+const vite = viteBin
+  ? spawn(process.execPath, [viteBin], {
+      cwd: rootDir,
+      stdio: 'inherit',
+    })
+  : spawn('npx', ['vite'], {
+      cwd: rootDir,
+      stdio: 'inherit',
+      shell: true,
+    });
 
 const cleanup = () => {
   try {
@@ -28,3 +51,4 @@ const cleanup = () => {
 
 process.on('SIGINT', () => { cleanup(); process.exit(); });
 process.on('SIGTERM', () => { cleanup(); process.exit(); });
+

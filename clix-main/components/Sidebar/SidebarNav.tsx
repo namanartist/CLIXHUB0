@@ -63,6 +63,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   const globalItems: SidebarItem[] = (() => {
     if (isSuperAdmin) return [
       { id: 'admin-dashboard', label: 'Admin Hub', icon: ShieldCheck },
+      { id: 'chat', label: 'Messages', icon: MessageSquare },
       { id: 'user-registry', label: 'User Registry', icon: Users },
       { id: 'clubs', label: 'Club Assets', icon: Globe },
       { id: 'venue-availability', label: 'Venue Availability', icon: Building2 },

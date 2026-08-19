@@ -1,6 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { Club, User } from '../../types';
+import { Club, User, Role } from '../../types';
 import { PerspectiveSwitcher } from './PerspectiveSwitcher';
 
 interface SidebarHeaderProps {
@@ -23,6 +23,9 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
           <img
             src="/image.png"
             alt="CLIX Logo"
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
             className="w-10 h-10 rounded-2xl object-cover shadow-lg border border-[var(--border-color)] shrink-0"
           />
           <div>

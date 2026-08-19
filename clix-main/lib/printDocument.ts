@@ -18,7 +18,7 @@ function escapeHtml(text: string): string {
 }
 
 function buildPrintHtml(contentHtml: string, title: string, options: PrintOptions): string {
-  const pageSize = options.landscape ? 'landscape' : 'portrait';
+  const pageSize = options.landscape ? 'A4 landscape' : 'A4 portrait';
   const headStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
     .map((node) => node.outerHTML)
     .join('\n');
@@ -31,51 +31,33 @@ function buildPrintHtml(contentHtml: string, title: string, options: PrintOption
 ${headStyles}
 <style>
   *, *::before, *::after { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: #fff !important; color: #111 !important; }
+  @page {
+    size: ${pageSize};
+    margin: 0;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    background: #ffffff !important;
+    color: #111111 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   body {
-    padding: 12mm;
-    font-family: Georgia, "Times New Roman", system-ui, sans-serif;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    font-family: 'Plus Jakarta Sans', Georgia, "Times New Roman", system-ui, sans-serif;
   }
   img { max-width: 100%; height: auto; display: block; }
   .ccms-print-page {
     position: relative;
     width: 100%;
     max-width: ${options.landscape ? '297mm' : '210mm'};
+    min-height: ${options.landscape ? '210mm' : '297mm'};
     margin: 0 auto;
     background: #fff;
+    page-break-inside: avoid;
   }
-  .ccms-print-page::before {
-    content: '';
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    width: 100px;
-    height: 100px;
-    background: url("/mitslogo.jpg") center/contain no-repeat;
-    opacity: 0.08;
-    pointer-events: none;
-  }
-  .ccms-print-page::after {
-    content: 'Trusted by Clix';
-    position: absolute;
-    left: 18px;
-    bottom: 18px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.4em;
-    color: rgba(51, 65, 85, 0.45);
-    background: url("/image.png") left center / 14px 14px no-repeat;
-    padding-left: 22px;
-    opacity: 0.9;
-    pointer-events: none;
-  }
-  .ccms-print-page + .ccms-print-page { page-break-before: always; margin-top: 12mm; }
-  @page { size: ${pageSize}; margin: 8mm; }
+  .ccms-print-page + .ccms-print-page { page-break-before: always; }
 </style>
 </head>
 <body>

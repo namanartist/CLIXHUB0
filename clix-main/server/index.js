@@ -4,24 +4,47 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { Server } from 'socket.io';
 import { createClient } from '@supabase/supabase-js';
 import { INITIAL_SEEDS } from './seeds.js';
 
-// ─── ENV ──────────────────────────────────────────────────────────────────────
-const rootDir = process.cwd();
-for (const p of [path.join(rootDir, '.env'), path.join(rootDir, '.env.local')]) {
-  if (fs.existsSync(p)) {
-    dotenv.config({ path: p });
-    break;
-  }
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ─── ENVIRONMENT CONFIGURATION ───────────────────────────────────────────────
+const rootDir = path.resolve(__dirname, '..');
+const possibleEnvPaths = [
+  path.join(process.cwd(), '.env'),
+  path.join(process.cwd(), '.env.local'),
+  path.join(__dirname, '..', '.env'),
+  path.join(__dirname, '..', '.env.local'),
+  path.join(__dirname, '..', '..', '.env'),
+  path.join(__dirname, '..', '..', '.env.local'),
+];
+
+for (const p of possibleEnvPaths) {
+  try {
+    if (fs.existsSync(p)) {
+      dotenv.config({ path: p });
+    }
+  } catch {}
 }
 
 // ─── SUPABASE INITIALIZATION ──────────────────────────────────────────────────
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vxhuqygbyzrfqtvprmut.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_H4-CXLF5S7TA-QxJM26ICw_lQhBQq2v';
+const SUPABASE_URL =
+  process.env.SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  'https://vxhuqygbyzrfqtvprmut.supabase.co';
+
+const SUPABASE_KEY =
+  process.env.SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  'sb_publishable_H4-CXLF5S7TA-QxJM26ICw_lQhBQq2v';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
@@ -30,10 +53,15 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   },
 });
 
-console.log(`[Supabase Backend] Initialized with URL: ${SUPABASE_URL}`);
+console.log(`[Supabase Backend] Connected to URL: ${SUPABASE_URL}`);
 
 // ─── PERSISTENT LOCAL DISK & MEMORY STORE ─────────────────────────────────────
-const DB_FILE = path.join(rootDir, 'server', 'data_store.json');
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY);
+const DB_FILE = isServerless
+  ? path.join('/tmp', 'data_store.json')
+  : (fs.existsSync(path.join(__dirname, 'data_store.json'))
+      ? path.join(__dirname, 'data_store.json')
+      : path.join(rootDir, 'server', 'data_store.json'));
 
 function loadLocalStore() {
   const store = {
@@ -56,6 +84,8 @@ function loadLocalStore() {
     qr_links: [...(INITIAL_SEEDS.qr_links || [])],
     institutional_kpis: [...(INITIAL_SEEDS.institutional_kpis || [])],
     approval_requests: [...(INITIAL_SEEDS.approval_requests || [])],
+    saved_events: [...(INITIAL_SEEDS.saved_events || [])],
+    dev_config: [...(INITIAL_SEEDS.dev_config || [])],
   };
 
   try {
@@ -67,10 +97,10 @@ function loadLocalStore() {
           store[key] = parsed[key];
         }
       }
-      console.log(`[Storage] Loaded persistent state from ${DB_FILE}`);
+      console.log(`[Storage] Loaded state from ${DB_FILE}`);
     }
   } catch (err) {
-    console.warn(`[Storage] Could not load data_store.json:`, err.message);
+    console.warn(`[Storage] Store load notice:`, err.message);
   }
   return store;
 }
@@ -83,11 +113,11 @@ function saveLocalStore() {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(DB_FILE, JSON.stringify(inMemoryStore, null, 2), 'utf8');
   } catch (err) {
-    console.error(`[Storage] Failed to save data_store.json:`, err.message);
+    // Non-fatal if filesystem is read-only
   }
 }
 
-// ─── SUPABASE HELPERS ─────────────────────────────────────────────────────────
+// ─── SUPABASE / MEMORY HELPERS ────────────────────────────────────────────────
 async function supabaseGetAll(table) {
   try {
     const { data, error } = await supabase.from(table).select('*');
@@ -97,8 +127,9 @@ async function supabaseGetAll(table) {
     if (Array.isArray(data) && data.length > 0) {
       inMemoryStore[table] = data;
       saveLocalStore();
+      return data;
     }
-    return data || inMemoryStore[table] || [];
+    return inMemoryStore[table] || [];
   } catch (e) {
     return inMemoryStore[table] || [];
   }
@@ -124,7 +155,7 @@ async function supabaseSave(table, id, data) {
     record.updated_at = new Date().toISOString();
   }
 
-  // Update in-memory & on-disk store
+  // Update in-memory store
   if (!inMemoryStore[table]) inMemoryStore[table] = [];
   const idx = inMemoryStore[table].findIndex(item => item.id === targetId);
   if (idx >= 0) {
@@ -176,6 +207,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: true, credentials: true },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  connectTimeout: 30000,
+  transports: ['websocket', 'polling']
 });
 
 const PORT = process.env.PORT || 4000;
@@ -209,8 +244,11 @@ function auth(req, res, next) {
   }
 }
 
+// ─── API ROUTER (Mounts on both /api and / for serverless/reverse-proxy compatibility) ─
+const apiRouter = express.Router();
+
 // ─── HEALTH & STATUS ──────────────────────────────────────────────────────────
-app.get('/api/health', async (_req, res) => {
+apiRouter.get('/health', async (_req, res) => {
   let supabaseStatus = 'connected';
   try {
     const { error } = await supabase.from('users').select('id').limit(1);
@@ -232,7 +270,7 @@ app.get('/api/health', async (_req, res) => {
 });
 
 // ─── SEED API ─────────────────────────────────────────────────────────────────
-app.post('/api/db/seed', async (req, res) => {
+apiRouter.post('/db/seed', async (req, res) => {
   try {
     const collections = [
       'users', 'clubs', 'events', 'venues', 'registrations', 'certificates',
@@ -261,7 +299,7 @@ app.post('/api/db/seed', async (req, res) => {
 });
 
 // ─── AUTHENTICATION ENDPOINTS ─────────────────────────────────────────────────
-app.post('/api/auth/signup', async (req, res) => {
+apiRouter.post('/auth/signup', async (req, res) => {
   const { name, email, password, globalRole, enrollmentNumber, branch, department, designation } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'Missing required fields' });
   const em = String(email).toLowerCase();
@@ -295,7 +333,7 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+apiRouter.post('/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Missing credentials' });
   const em = String(email).toLowerCase();
@@ -316,18 +354,16 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.get('/api/auth/me', auth, async (req, res) => {
+apiRouter.get('/auth/me', auth, async (req, res) => {
   try {
     const user = await supabaseGetOne('users', req.user.id);
     if (user) {
       return res.json(mapDoc(user));
     }
-    // Fallback: search by email
     const users = await supabaseQueryWhere('users', 'email', req.user.email);
     if (users && users.length > 0) {
       return res.json(mapDoc(users[0]));
     }
-    // If not found in DB but token valid, construct safe minimal user
     res.json({
       id: req.user.id,
       email: req.user.email,
@@ -336,12 +372,12 @@ app.get('/api/auth/me', auth, async (req, res) => {
       clubMemberships: []
     });
   } catch (e) {
-    console.error('/api/auth/me error:', e);
+    console.error('/auth/me error:', e);
     res.status(500).json({ error: e?.message || 'Failed to fetch user session' });
   }
 });
 
-app.post('/api/auth/demo-login', async (req, res) => {
+apiRouter.post('/auth/demo-login', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email required' });
   const em = String(email).toLowerCase();
@@ -367,120 +403,105 @@ app.post('/api/auth/demo-login', async (req, res) => {
   }
 });
 
-// ─── CRUD ROUTE GENERATOR FOR ALL SUPABASE ENTITIES ───────────────────────────
-const ENTITY_ROUTES = [
-  { path: 'users', table: 'users' },
-  { path: 'clubs', table: 'clubs' },
-  { path: 'events', table: 'events' },
-  { path: 'venues', table: 'venues' },
-  { path: 'registrations', table: 'registrations' },
-  { path: 'certificates', table: 'certificates' },
-  { path: 'batches', table: 'batches' },
-  { path: 'applicants', table: 'applicants' },
-  { path: 'proposals', table: 'proposals' },
-  { path: 'activities', table: 'activities' },
-  { path: 'logs', table: 'logs' },
-  { path: 'messages', table: 'messages' },
-  { path: 'notifications', table: 'notifications' },
-  { path: 'developers', table: 'developers' },
-  { path: 'mentors', table: 'mentors' },
-  { path: 'inquiries', table: 'inquiries' },
-  { path: 'qr-links', table: 'qr_links' },
-  { path: 'kpis', table: 'institutional_kpis' },
-  { path: 'approvals', table: 'approval_requests' },
-];
+// ─── CUSTOM SPECIALIZED ENDPOINTS (Placed before generic entity router) ───
 
-for (const { path: routePath, table } of ENTITY_ROUTES) {
-  // GET ALL
-  app.get(`/api/${routePath}`, async (_req, res) => {
-    try {
-      const list = await supabaseGetAll(table);
-      res.json(list.map(mapDoc));
-    } catch (e) {
-      res.status(500).json({ error: e?.message || `Failed to fetch ${table}` });
-    }
-  });
-
-  // GET ONE
-  app.get(`/api/${routePath}/:id`, async (req, res) => {
-    try {
-      const item = await supabaseGetOne(table, req.params.id);
-      if (!item) return res.status(404).json({ error: 'Not found' });
-      res.json(mapDoc(item));
-    } catch (e) {
-      res.status(500).json({ error: e?.message || `Failed to fetch item from ${table}` });
-    }
-  });
-
-  // CREATE / UPSERT
-  app.post(`/api/${routePath}`, async (req, res) => {
-    try {
-      const saved = await supabaseSave(table, req.body.id, req.body);
-      io.emit(`${table}:change`, { action: 'create', data: saved });
-      res.json(mapDoc(saved));
-    } catch (e) {
-      res.status(500).json({ error: e?.message || `Failed to save to ${table}` });
-    }
-  });
-
-  // UPDATE (PUT)
-  app.put(`/api/${routePath}/:id`, async (req, res) => {
-    try {
-      const saved = await supabaseSave(table, req.params.id, req.body);
-      io.emit(`${table}:change`, { action: 'update', data: saved });
-      res.json(mapDoc(saved));
-    } catch (e) {
-      res.status(500).json({ error: e?.message || `Failed to update ${table}` });
-    }
-  });
-
-  // UPDATE (PATCH)
-  app.patch(`/api/${routePath}/:id`, async (req, res) => {
-    try {
-      const existing = await supabaseGetOne(table, req.params.id);
-      const merged = { ...existing, ...req.body };
-      const saved = await supabaseSave(table, req.params.id, merged);
-      io.emit(`${table}:change`, { action: 'patch', data: saved });
-      res.json(mapDoc(saved));
-    } catch (e) {
-      res.status(500).json({ error: e?.message || `Failed to patch ${table}` });
-    }
-  });
-
-  // DELETE
-  app.delete(`/api/${routePath}/:id`, async (req, res) => {
-    try {
-      await supabaseDelete(table, req.params.id);
-      io.emit(`${table}:change`, { action: 'delete', id: req.params.id });
-      res.json({ success: true, id: req.params.id });
-    } catch (e) {
-      res.status(500).json({ error: e?.message || `Failed to delete from ${table}` });
-    }
-  });
-}
-
-// ─── SEED & EXPORT DATA ENDPOINTS ─────────────────────────────────────────────
-app.post('/api/db/seed', (req, res) => {
+// Club Members
+apiRouter.get('/clubs/:clubId/available-members', async (req, res) => {
   try {
-    const seedData = req.body || {};
-    for (const key of Object.keys(seedData)) {
-      if (Array.isArray(seedData[key]) && seedData[key].length > 0) {
-        inMemoryStore[key] = seedData[key];
-      }
-    }
-    saveLocalStore();
-    res.json({ success: true, message: 'Institutional database seeded and persisted' });
+    const { clubId } = req.params;
+    const users = await supabaseGetAll('users');
+    const available = users.filter(u => {
+      const memberships = u.clubMemberships || [];
+      return !memberships.some(m => String(m.clubId) === String(clubId));
+    });
+    res.json(available.map(mapDoc));
   } catch (e) {
-    res.status(500).json({ error: e?.message || 'Failed to seed database' });
+    res.status(500).json({ error: e?.message || 'Failed to fetch available members' });
   }
 });
 
-app.get('/api/db/export', (_req, res) => {
-  res.json(inMemoryStore);
+apiRouter.post('/clubs/:clubId/members', async (req, res) => {
+  try {
+    const { clubId } = req.params;
+    const { userId, role } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+    const user = await supabaseGetOne('users', userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const memberships = Array.isArray(user.clubMemberships) ? [...user.clubMemberships] : [];
+    const existingIdx = memberships.findIndex(m => String(m.clubId) === String(clubId));
+    if (existingIdx >= 0) {
+      memberships[existingIdx].role = role || 'Member';
+    } else {
+      memberships.push({ clubId, role: role || 'Member' });
+    }
+    user.clubMemberships = memberships;
+    const updated = await supabaseSave('users', user.id, user);
+    io.emit('users:change', { action: 'update', data: updated });
+    res.json(mapDoc(updated));
+  } catch (e) {
+    res.status(500).json({ error: e?.message || 'Failed to add member' });
+  }
 });
 
-// ─── MESSAGES SPECIFIC ROUTE ──────────────────────────────────────────────────
-app.get('/api/messages', async (req, res) => {
+apiRouter.delete('/clubs/:clubId/members/:userId', async (req, res) => {
+  try {
+    const { clubId, userId } = req.params;
+    const user = await supabaseGetOne('users', userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const memberships = (user.clubMemberships || []).filter(m => String(m.clubId) !== String(clubId));
+    user.clubMemberships = memberships;
+    const updated = await supabaseSave('users', user.id, user);
+    io.emit('users:change', { action: 'update', data: updated });
+    res.json(mapDoc(updated));
+  } catch (e) {
+    res.status(500).json({ error: e?.message || 'Failed to remove member' });
+  }
+});
+
+// Event Ticket Candidates & Ticket Generation
+apiRouter.get('/events/:eventId/ticket-candidates', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const registrations = await supabaseQueryWhere('registrations', 'eventId', eventId);
+    const users = await supabaseGetAll('users');
+    const regStudentIds = new Set(registrations.map(r => String(r.studentId || r.userId || r.id)));
+    const candidates = users.filter(u => !regStudentIds.has(String(u.id)));
+    res.json(candidates.map(mapDoc));
+  } catch (e) {
+    res.status(500).json({ error: e?.message || 'Failed to fetch ticket candidates' });
+  }
+});
+
+apiRouter.post('/events/:eventId/generate-ticket', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { studentId, studentName, studentRoll } = req.body;
+    const event = await supabaseGetOne('events', eventId);
+    const ticketId = `TKT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const id = `reg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const newReg = {
+      id,
+      ticketId,
+      eventId,
+      eventName: event?.name || 'Event',
+      studentId: studentId || id,
+      studentName: studentName || 'Student',
+      studentRoll: studentRoll || 'N/A',
+      status: 'Confirmed',
+      paymentStatus: 'Completed',
+      registeredAt: new Date().toISOString(),
+      timestamp: new Date().toISOString()
+    };
+    const saved = await supabaseSave('registrations', id, newReg);
+    io.emit('registrations:change', { action: 'create', data: saved });
+    res.json(mapDoc(saved));
+  } catch (e) {
+    res.status(500).json({ error: e?.message || 'Failed to generate ticket' });
+  }
+});
+
+// Messages Query & Read
+apiRouter.get('/messages', async (req, res) => {
   try {
     const { clubId, userId, otherUserId } = req.query;
     let list = await supabaseGetAll('messages');
@@ -503,12 +524,203 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
+apiRouter.patch('/messages/:id/read', async (req, res) => {
+  try {
+    const msg = await supabaseGetOne('messages', req.params.id);
+    if (!msg) return res.status(404).json({ error: 'Message not found' });
+    msg.read = true;
+    const updated = await supabaseSave('messages', msg.id, msg);
+    res.json(mapDoc(updated));
+  } catch (e) {
+    res.status(500).json({ error: e?.message || 'Failed to mark message as read' });
+  }
+});
+
+// Notifications Query & Read
+apiRouter.get('/notifications', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    let list = await supabaseGetAll('notifications');
+    if (userId) {
+      list = list.filter(n => !n.userId || String(n.userId) === String(userId));
+    }
+    res.json(list.map(mapDoc));
+  } catch (e) {
+    res.status(500).json({ error: e?.message || 'Failed to fetch notifications' });
+  }
+});
+
+apiRouter.post('/notifications/:id/read', async (req, res) => {
+  try {
+    const notif = await supabaseGetOne('notifications', req.params.id);
+    if (notif) {
+      notif.read = true;
+      await supabaseSave('notifications', notif.id, notif);
+    }
+    res.json({ success: true, id: req.params.id });
+  } catch (e) {
+    res.status(500).json({ error: e?.message || 'Failed to mark notification as read' });
+  }
+});
+
+// Saved Events
+apiRouter.get('/saved-events/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const saved = await supabaseGetAll('saved_events');
+    const userSaved = saved.filter(s => String(s.userId) === String(userId)).map(s => s.eventId);
+    res.json(userSaved);
+  } catch (e) {
+    res.status(500).json({ error: e?.message || 'Failed to fetch saved events' });
+  }
+});
+
+apiRouter.post('/saved-events/toggle', async (req, res) => {
+  try {
+    const { userId, eventId } = req.body;
+    if (!userId || !eventId) return res.status(400).json({ error: 'userId and eventId required' });
+    const savedList = await supabaseGetAll('saved_events');
+    const existing = savedList.find(s => String(s.userId) === String(userId) && String(s.eventId) === String(eventId));
+    if (existing) {
+      await supabaseDelete('saved_events', existing.id);
+      res.json({ saved: false, eventId });
+    } else {
+      const newId = `se_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      await supabaseSave('saved_events', newId, { id: newId, userId, eventId, savedAt: new Date().toISOString() });
+      res.json({ saved: true, eventId });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e?.message || 'Failed to toggle saved event' });
+  }
+});
+
+// Developer Config
+apiRouter.get('/dev-config', async (_req, res) => {
+  try {
+    const configs = await supabaseGetAll('dev_config');
+    res.json(configs[0] || null);
+  } catch (e) {
+    res.status(500).json({ error: e?.message || 'Failed to fetch dev config' });
+  }
+});
+
+apiRouter.post('/dev-config', async (req, res) => {
+  try {
+    const config = req.body || {};
+    const id = config.id || 'dev_config_primary';
+    const saved = await supabaseSave('dev_config', id, { ...config, id });
+    res.json(mapDoc(saved));
+  } catch (e) {
+    res.status(500).json({ error: e?.message || 'Failed to save dev config' });
+  }
+});
+
+// ─── CRUD ROUTE GENERATOR FOR ALL SUPABASE ENTITIES ───────────────────────────
+const ENTITY_ROUTES = [
+  { path: 'users', table: 'users' },
+  { path: 'clubs', table: 'clubs' },
+  { path: 'events', table: 'events' },
+  { path: 'venues', table: 'venues' },
+  { path: 'registrations', table: 'registrations' },
+  { path: 'certificates', table: 'certificates' },
+  { path: 'batches', table: 'batches' },
+  { path: 'applicants', table: 'applicants' },
+  { path: 'proposals', table: 'proposals' },
+  { path: 'activities', table: 'activities' },
+  { path: 'logs', table: 'logs' },
+  { path: 'developers', table: 'developers' },
+  { path: 'mentors', table: 'mentors' },
+  { path: 'inquiries', table: 'inquiries' },
+  { path: 'qr-links', table: 'qr_links' },
+  { path: 'kpis', table: 'institutional_kpis' },
+  { path: 'approvals', table: 'approval_requests' },
+];
+
+for (const { path: routePath, table } of ENTITY_ROUTES) {
+  // GET ALL
+  apiRouter.get(`/${routePath}`, async (_req, res) => {
+    try {
+      const list = await supabaseGetAll(table);
+      res.json(list.map(mapDoc));
+    } catch (e) {
+      res.status(500).json({ error: e?.message || `Failed to fetch ${table}` });
+    }
+  });
+
+  // GET ONE
+  apiRouter.get(`/${routePath}/:id`, async (req, res) => {
+    try {
+      const item = await supabaseGetOne(table, req.params.id);
+      if (!item) return res.status(404).json({ error: 'Not found' });
+      res.json(mapDoc(item));
+    } catch (e) {
+      res.status(500).json({ error: e?.message || `Failed to fetch item from ${table}` });
+    }
+  });
+
+  // CREATE / UPSERT
+  apiRouter.post(`/${routePath}`, async (req, res) => {
+    try {
+      const saved = await supabaseSave(table, req.body.id, req.body);
+      io.emit(`${table}:change`, { action: 'create', data: saved });
+      res.json(mapDoc(saved));
+    } catch (e) {
+      res.status(500).json({ error: e?.message || `Failed to save to ${table}` });
+    }
+  });
+
+  // UPDATE (PUT)
+  apiRouter.put(`/${routePath}/:id`, async (req, res) => {
+    try {
+      const saved = await supabaseSave(table, req.params.id, req.body);
+      io.emit(`${table}:change`, { action: 'update', data: saved });
+      res.json(mapDoc(saved));
+    } catch (e) {
+      res.status(500).json({ error: e?.message || `Failed to update ${table}` });
+    }
+  });
+
+  // UPDATE (PATCH)
+  apiRouter.patch(`/${routePath}/:id`, async (req, res) => {
+    try {
+      const existing = await supabaseGetOne(table, req.params.id);
+      const merged = { ...existing, ...req.body };
+      const saved = await supabaseSave(table, req.params.id, merged);
+      io.emit(`${table}:change`, { action: 'patch', data: saved });
+      res.json(mapDoc(saved));
+    } catch (e) {
+      res.status(500).json({ error: e?.message || `Failed to patch ${table}` });
+    }
+  });
+
+  // DELETE
+  apiRouter.delete(`/${routePath}/:id`, async (req, res) => {
+    try {
+      await supabaseDelete(table, req.params.id);
+      io.emit(`${table}:change`, { action: 'delete', id: req.params.id });
+      res.json({ success: true, id: req.params.id });
+    } catch (e) {
+      res.status(500).json({ error: e?.message || `Failed to delete from ${table}` });
+    }
+  });
+}
+
+// ─── DATA EXPORT ──────────────────────────────────────────────────────────────
+apiRouter.get('/db/export', (_req, res) => {
+  res.json(inMemoryStore);
+});
+
+// Mount the API Router on both /api and /
+app.use('/api', apiRouter);
+app.use('/', apiRouter);
+
 // ─── REAL-TIME SOCKET.IO HANDLERS ─────────────────────────────────────────────
 io.on('connection', (socket) => {
   console.log(`[Socket.io] Client connected: ${socket.id}`);
 
   socket.on('join', (data) => {
     if (data?.userId) socket.join(`user:${data.userId}`);
+    if (data?.userEmail) socket.join(`user:${data.userEmail}`);
     if (Array.isArray(data?.clubIds)) {
       data.clubIds.forEach(id => socket.join(`club:${id}`));
     }
@@ -523,18 +735,25 @@ io.on('connection', (socket) => {
       const saved = await supabaseSave('messages', messageData.id, messageData);
       const mapped = mapDoc(saved);
 
-      // Broadcast to all event channels
-      io.emit('receive_message', mapped);
-      io.emit('new_message', mapped);
-      io.emit('messages:change', { action: 'create', data: mapped });
-
-      if (messageData.clubId) {
-        io.to(`club:${messageData.clubId}`).emit('receive_message', mapped);
-        io.to(`club:${messageData.clubId}`).emit('new_message', mapped);
-      }
       if (messageData.recipientId) {
+        // Direct Message: Strictly route to recipient and sender ONLY
         io.to(`user:${messageData.recipientId}`).emit('receive_message', mapped);
         io.to(`user:${messageData.recipientId}`).emit('new_message', mapped);
+        if (messageData.senderId) {
+          io.to(`user:${messageData.senderId}`).emit('receive_message', mapped);
+          io.to(`user:${messageData.senderId}`).emit('new_message', mapped);
+        }
+        socket.emit('receive_message', mapped);
+        socket.emit('new_message', mapped);
+      } else if (messageData.clubId === 'institutional') {
+        // Institutional / campus-wide announcement
+        io.emit('receive_message', mapped);
+        io.emit('new_message', mapped);
+        io.emit('messages:change', { action: 'create', data: mapped });
+      } else if (messageData.clubId) {
+        // Club / Event Channel: Route strictly to club members in room
+        io.to(`club:${messageData.clubId}`).emit('receive_message', mapped);
+        io.to(`club:${messageData.clubId}`).emit('new_message', mapped);
       }
     } catch (err) {
       console.error('Socket send_message error:', err);
@@ -546,8 +765,8 @@ io.on('connection', (socket) => {
   });
 });
 
-// ─── START SERVER ─────────────────────────────────────────────────────────────
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+// ─── START SERVER (FOR STANDALONE NODE / LOCAL / RENDER / RAILWAY) ───────────
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
   server.listen(PORT, () => {
     console.log(`⚡ [CLIX Hub Server] Running on http://localhost:${PORT}`);
     console.log(`🔗 [Database Backend] Connected to Supabase at ${SUPABASE_URL}`);

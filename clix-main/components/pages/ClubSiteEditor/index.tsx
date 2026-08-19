@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Club, Event, User, ClubProject, ClubTeamMember, ClubGalleryItem, ClubAnnouncement } from '../../types';
+import { Club, Event, User, ClubProject, ClubTeamMember, ClubGalleryItem, ClubAnnouncement } from '@/types';
 import { CLUB_THEMES, ClubThemeDefinition, getClubTheme } from '../../../lib/clubThemes';
 import {
   Palette,

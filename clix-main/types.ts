@@ -10,6 +10,7 @@ export enum ClubRole {
   PRESIDENT = 'President',
   VICE_PRESIDENT = 'Vice President',
   SECRETARY = 'Secretary',
+  JOINT_SECRETARY = 'Joint Secretary',
   TREASURER = 'Treasurer',
   TECH_HEAD = 'Tech Head',
   CONTENT_HEAD = 'Content Head',
@@ -31,8 +32,12 @@ export interface User {
   linkedin?: string;
   github?: string;
   phoneNumber?: string;
+  phone?: string;
   enrollmentNumber?: string;
+  enrollmentNo?: string;
   rollNumber?: string;
+  rollNo?: string;
+  roll?: string;
   address?: string;
   branch?: string;
   department?: string;  // New: For students and faculty
@@ -94,7 +99,8 @@ export interface CertificateConfig {
   showMITSLogo: boolean;
   showClubLogo: boolean;
   signatureTextFaculty: string;
-  signatureTextDean: string;
+  signatureTextDean?: string;
+  signatureTextPresident?: string;
 }
 
 export interface ApprovalStep {
@@ -106,6 +112,7 @@ export interface ApprovalStep {
 }
 
 export interface IssuedCertificate {
+  id?: string;
   serialNumber: string;
   studentId: string;
   studentName: string;
@@ -113,17 +120,21 @@ export interface IssuedCertificate {
   email?: string;
   eventName: string;
   clubId: string;
-  clubName: string;
-  date: string;
+  clubName?: string;
+  date?: string;
+  issueDate?: string;
+  signatories?: any;
   hash: string;
-  batchId: string;
+  batchId?: string;
 }
 
 export interface CertificateBatch {
   id: string;
   clubId: string;
   eventId: string;
-  templateId: CertificateTemplate;
+  eventName?: string;
+  title?: string;
+  templateId?: CertificateTemplate;
   status: 'Draft' | 'PendingFaculty' | 'PendingDean' | 'Approved' | 'Rejected';
   createdBy: string;
   createdAt: string;
@@ -157,6 +168,7 @@ export interface ClubTeamMember {
   name: string;
   role: string;
   tier: 'Faculty' | 'Executive' | 'Lead' | 'Core' | 'Member';
+  domain?: string;
   batch?: string;
   photoUrl?: string;
   linkedin?: string;
@@ -166,7 +178,7 @@ export interface ClubTeamMember {
 export interface ClubGalleryItem {
   id: string;
   title: string;
-  category: 'Events' | 'Workshops' | 'Competitions' | 'Team';
+  category: 'Events' | 'Workshops' | 'Competitions' | 'Team' | 'Hackathons' | string;
   mediaUrl: string;
   date?: string;
 }
@@ -175,7 +187,7 @@ export interface ClubAnnouncement {
   id: string;
   title: string;
   content: string;
-  tag: 'Recruitment' | 'Event' | 'Results' | 'Notice';
+  tag: 'Recruitment' | 'Event' | 'Results' | 'Notice' | 'Flagship Event' | 'Workshop' | string;
   date: string;
   link?: string;
 }
@@ -196,11 +208,14 @@ export interface Club {
   themeColor: string;
   subdomain: string;
   logoUrl?: string;
-  facultyCoordinatorId: string;
+  facultyCoordinatorId?: string;
   facultyCoordinatorNames?: string[];
   leadership: Record<string, string>;
   isFrozen?: boolean;
   recruitmentActive?: boolean;
+  membersCount?: number;
+  budget?: number;
+  spent?: number;
   tagline?: string;
   bannerUrl?: string;
   description?: string;
@@ -226,7 +241,9 @@ export interface Venue {
   location?: string;
   capacity?: number;
   amenities?: string[];
+  facilities?: string[];
   status?: 'Available' | 'Booked' | 'Maintenance' | 'Reserved';
+  isAvailable?: boolean;
   description?: string;
 }
 
@@ -256,6 +273,7 @@ export interface Registration {
   paymentType: 'Free' | 'UPI' | 'Gateway';
   paymentGatewayProvider?: PaymentGatewayConfig['provider'];
   paymentProofUrl?: string;
+  paymentDetails?: any;
   transactionId?: string;
   ticketId?: string;
   attendanceMarked?: boolean;
@@ -271,12 +289,15 @@ export interface Event {
   fee?: number;
   status: 'Pending' | 'Approved' | 'Rejected';
   date: string;
+  time?: string;
   startDateTime?: string;
   endDateTime?: string;
   location?: string;
   venueId?: string;
   venue?: string;
   maxRegistrations?: number;
+  maxParticipants?: number;
+  tags?: string[];
   perks?: string;
   venueDetails?: string;
   venueAllocationRequestedTo?: 'Dean' | 'Faculty' | 'None';
@@ -377,6 +398,9 @@ export interface Notification {
   timestamp: string;
   read: boolean;
   senderName?: string;
+  userId?: string;
+  createdAt?: string;
+  link?: string;
 }
 
 export interface SessionArchive {

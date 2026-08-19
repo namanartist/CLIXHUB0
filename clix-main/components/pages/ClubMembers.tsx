@@ -195,9 +195,18 @@ const MemberDossierModal: React.FC<any> = ({ setSelectedMember, selectedMember, 
   </div>
 );
 
-interface Props { clubId: string; clubName: string; isDarkMode: boolean; clubRole: ClubRole | null; allUsers: User[]; onUpdateUser: (user: User) => void; applicants: Applicant[]; }
+interface Props {
+  clubId: string;
+  clubName: string;
+  isDarkMode: boolean;
+  clubRole: ClubRole | null;
+  allUsers: User[];
+  onUpdateUser: (user: User) => void | Promise<void>;
+  applicants?: Applicant[];
+  onAddMember?: () => void;
+}
 
-const ClubMembers: React.FC<Props> = ({ clubId, clubName, isDarkMode, clubRole, allUsers, onUpdateUser }) => {
+const ClubMembers: React.FC<Props> = ({ clubId, clubName, isDarkMode, clubRole, allUsers, onUpdateUser, onAddMember }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [personnelSearch, setPersonnelSearch] = useState('');
   const [selectedMember, setSelectedMember] = useState<User | null>(null);

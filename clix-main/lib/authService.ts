@@ -1,9 +1,8 @@
 import { User, Role } from '../types';
 import { DEMO_USERS } from '../constants';
 import { firestoreQueryWhere, firestoreSave } from './firestoreDb';
+import { API_BASE } from './apiConfig';
 
-const defaultApiBase = import.meta.env.PROD ? '' : 'http://localhost:4000';
-const API_BASE = `${import.meta.env.VITE_API_BASE || defaultApiBase}/api`;
 const TOKEN_KEY = 'ccms_auth_token';
 const USER_KEY = 'ccms_user';
 
@@ -23,6 +22,7 @@ export interface SignupCredentials {
     password: string;
     globalRole?: Role;
     enrollmentNumber?: string;
+    branch?: string;
     department?: string;
     designation?: string;
 }

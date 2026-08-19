@@ -172,7 +172,7 @@ const ProposalApprovals: React.FC<ProposalApprovalsProps> = ({ pendingProposals,
   </div>
 );
 
-const EventApprovals: React.FC<EventApprovalsProps> = ({ pendingEvents, clubs, onApproveEvent }) => (
+const EventApprovals: React.FC<EventApprovalsProps> = ({ pendingEvents, clubs, onApproveEvent, onRejectEvent }) => (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
     {pendingEvents.length === 0 ? (
       <div className="col-span-2 p-16 border-2 border-dashed border-[var(--border-color)] rounded-[2rem] text-center space-y-4">
@@ -358,10 +358,10 @@ const FacultyOversight: React.FC<Props> = ({
   
   const pendingEvents = events.filter(e => e.status === 'Pending');
   
-  const role = currentUser?.globalRole;
-  const isFaculty = role === Role.FACULTY || role === 'Faculty' || (role as any) === 'FACULTY';
-  const isDean = role === Role.DEAN || role === 'Dean' || (role as any) === 'DEAN';
-  const isSuperAdmin = role === Role.SUPER_ADMIN || role === 'Super Admin' || (role as any) === 'SUPER_ADMIN';
+  const roleStr = String(currentUser?.globalRole || '');
+  const isFaculty = roleStr === Role.FACULTY || roleStr === 'Faculty' || roleStr === 'FACULTY';
+  const isDean = roleStr === Role.DEAN || roleStr === 'Dean' || roleStr === 'DEAN';
+  const isSuperAdmin = roleStr === Role.SUPER_ADMIN || roleStr === 'Super Admin' || roleStr === 'SUPER_ADMIN';
 
   const pendingBatches = batches.filter(b => { 
     if (isFaculty) return b.status === 'PendingFaculty'; 

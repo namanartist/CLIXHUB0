@@ -1,6 +1,6 @@
 import React from 'react';
 import { Activity, Calendar } from 'lucide-react';
-import { Event } from '../../../types';
+import { Event } from '@/types';
 
 interface EventHubProps {
   isDarkMode: boolean;

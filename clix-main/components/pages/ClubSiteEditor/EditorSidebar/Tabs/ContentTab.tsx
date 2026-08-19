@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sparkles, Loader2, Upload, Plus, Trash2 } from 'lucide-react';
-import { Club, CustomSection } from '../../../../types';
+import { Club, CustomSection } from '@/types';
 
 interface ContentTabProps {
   formData: Club;

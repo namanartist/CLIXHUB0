@@ -1,8 +1,9 @@
-import React from 'react';
-import { X, QrCode, Printer, Download, ShieldCheck, Calendar, MapPin, Ticket, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, QrCode, Printer, Download, ShieldCheck, Calendar, MapPin, Ticket, Sparkles, Check } from 'lucide-react';
 import { Registration, Event, Club } from '../../../../types';
 import { printFirstAvailable, printEventPassHtml } from '../../../../lib/printDocument';
 import { ClixQRCode } from '../../../common/ClixQRCode';
+import { saveToGoogleWallet } from '../../../../lib/googleWallet';
 
 interface TicketPreviewModalProps {
   selectedReg: Registration;
@@ -18,8 +19,23 @@ export const TicketPreviewModal: React.FC<TicketPreviewModalProps> = ({
   clubs,
   setIsPreviewModalOpen,
 }) => {
-  const event = events.find(e => e.id === selectedReg.eventId);
-  const club = clubs.find(c => c.id === event?.clubId);
+  const [walletSaved, setWalletSaved] = useState(false);
+  const rawEvent = events.find(e => e.id === selectedReg.eventId);
+  const event = rawEvent || {
+    id: selectedReg.eventId,
+    title: (selectedReg as any).eventTitle || (selectedReg as any).title || (selectedReg.ticketId ? `Event Pass (${selectedReg.ticketId})` : 'MITS Campus Event'),
+    clubId: (selectedReg as any).clubId || '',
+    type: (selectedReg as any).type || (selectedReg.paymentType === 'Free' ? 'Free' : 'Paid'),
+    date: (selectedReg as any).date || (selectedReg as any).eventDate || new Date().toISOString().split('T')[0],
+    venue: (selectedReg as any).venue || 'MITS Main Campus',
+    description: 'Official student registration and admission pass.',
+  };
+  const rawClub = clubs.find(c => c.id === event?.clubId);
+  const club = rawClub || {
+    id: event.clubId || 'mits-general',
+    name: (selectedReg as any).clubName || (event as any).clubName || 'MITS Institutional Society',
+    themeColor: '#2563eb',
+  };
   const ticketId = selectedReg.ticketId || selectedReg.id;
 
   const onPrint = () => {
@@ -27,9 +43,9 @@ export const TicketPreviewModal: React.FC<TicketPreviewModalProps> = ({
       ['event-pass-print-area', 'print-ticket-area'],
       `MITS Pass - ${ticketId}`
     );
-    if (!ok && event) {
+    if (!ok) {
       printEventPassHtml({
-        clubName: club?.name || 'MITS Club',
+        clubName: club.name || 'MITS Club',
         eventTitle: event.title,
         studentName: selectedReg.studentName,
         ticketId: ticketId,
@@ -37,6 +53,23 @@ export const TicketPreviewModal: React.FC<TicketPreviewModalProps> = ({
         qrData: ticketId,
       });
     }
+  };
+
+  const handleSaveToWallet = () => {
+    saveToGoogleWallet({
+      id: ticketId,
+      type: 'EVENT_TICKET',
+      title: event.title || 'Campus Event Pass',
+      subtitle: club.name || 'MITS Club',
+      recipientName: selectedReg.studentName,
+      recipientId: selectedReg.studentRoll,
+      organizationName: club.name || 'Madhav Institute of Technology & Science',
+      date: event.date,
+      venue: event.venue || 'MITS Main Campus',
+      barcodeValue: ticketId,
+    });
+    setWalletSaved(true);
+    setTimeout(() => setWalletSaved(false), 4000);
   };
 
   return (
@@ -146,10 +179,31 @@ export const TicketPreviewModal: React.FC<TicketPreviewModalProps> = ({
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <button
             type="button"
+            onClick={handleSaveToWallet}
+            className="flex-1 h-12 bg-black hover:bg-neutral-900 text-white rounded-2xl font-bold text-xs uppercase tracking-wider border border-neutral-700 shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+          >
+            {walletSaved ? (
+              <>
+                <Check size={16} className="text-emerald-400" /> Added to Google Wallet
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M19.5 4H4.5C3.12 4 2 5.12 2 6.5V17.5C2 18.88 3.12 20 4.5 20H19.5C20.88 20 22 18.88 22 17.5V6.5C22 5.12 20.88 4 19.5 4Z" fill="#202124"/>
+                  <path d="M4 8.5C4 7.67 4.67 7 5.5 7H18.5C19.33 7 20 7.67 20 8.5V15.5C20 16.33 19.33 17 18.5 17H5.5C4.67 17 4 16.33 4 15.5V8.5Z" fill="#3C4043"/>
+                  <path d="M15 12C15 13.1 15.9 14 17 14C18.1 14 19 13.1 19 12C19 10.9 18.1 10 17 10C15.9 10 15 10.9 15 12Z" fill="#FBBC04"/>
+                  <path d="M7 11H13V13H7V11Z" fill="#4285F4"/>
+                </svg>
+                Save to Google Wallet
+              </>
+            )}
+          </button>
+          <button
+            type="button"
             onClick={onPrint}
             className="flex-1 h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-xs uppercase tracking-wider shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Printer size={16} /> Print / Save Pass (PDF)
+            <Printer size={16} /> Print Pass (PDF)
           </button>
           <button
             type="button"

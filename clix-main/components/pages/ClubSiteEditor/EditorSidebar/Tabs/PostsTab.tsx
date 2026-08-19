@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plus, Globe2, Trash2 } from 'lucide-react';
-import { Club, CustomSection } from '../../../../types';
+import { Club, CustomSection } from '@/types';
 
 interface PostsTabProps {
   formData: Club;

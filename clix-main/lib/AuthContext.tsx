@@ -17,7 +17,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [user, setUser] = useState<User | null>(authService.getUser());
+    const [user, setUser] = useState<User | null>(() => authService.getUser());
     const [loading, setLoading] = useState(true);
 
     // Initialize auth state on mount
@@ -27,6 +27,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 const cachedUser = authService.getUser();
                 if (cachedUser) {
                     setUser(cachedUser);
+                    if (!authService.getToken()) {
+                        // Ensure demo/offline token exists if user exists
+                        const syntheticToken = `demo:${cachedUser.id}`;
+                        localStorage.setItem('ccms_auth_token', syntheticToken);
+                    }
                 }
                 if (authService.isAuthenticated()) {
                     const currentUser = await authService.getMe();

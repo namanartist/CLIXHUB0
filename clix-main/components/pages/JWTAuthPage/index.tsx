@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../lib/AuthContext';
+import { Role } from '../../../types';
 import { LogIn, Zap, ArrowLeft } from 'lucide-react';
 import { HeroSide } from './Sections/HeroSide';
 import { JWTPanel } from './Sections/JWTPanel';
@@ -43,7 +44,7 @@ const JWTAuthPage: React.FC<Props> = () => {
         setIsLoading(true);
         try {
             if (formType === 'login') { await login({ email, password }); }
-            else { await signup({ name, email, password, globalRole: signupRole === 'student' ? 'Student' : 'Faculty', enrollmentNumber: signupRole === 'student' ? enrollmentNumber : undefined, branch: signupRole === 'student' ? selectedBranch : undefined, department: signupRole === 'student' ? selectedBranch : selectedDepartment, designation: signupRole === 'faculty' ? designation : undefined }); }
+            else { await signup({ name, email, password, globalRole: signupRole === 'student' ? Role.STUDENT : Role.FACULTY, enrollmentNumber: signupRole === 'student' ? enrollmentNumber : undefined, branch: signupRole === 'student' ? selectedBranch : undefined, department: signupRole === 'student' ? selectedBranch : selectedDepartment, designation: signupRole === 'faculty' ? designation : undefined }); }
             navigate(returnTo.startsWith('/') ? returnTo : '/dashboard');
         } catch (err: any) { setError(err.message || 'Authentication failed.'); } finally { setIsLoading(false); }
     };
@@ -63,13 +64,29 @@ const JWTAuthPage: React.FC<Props> = () => {
                         <ArrowLeft size={16} /> Back to Home
                     </button>
                     <div className="w-full max-w-lg space-y-6 sm:space-y-8 reveal mt-8 sm:mt-0">
-                        <div className="flex bg-primary-soft/50 p-2 rounded-2xl border border-[var(--border-color)] text-center justify-center">
-                            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary flex items-center gap-2">
-                                <LogIn size={14} /> Official Institutional Gateway
-                            </span>
+                        <div className="flex bg-primary-soft/40 p-1.5 rounded-2xl border border-[var(--border-color)]">
+                            <button
+                                type="button"
+                                onClick={() => { setAuthMode('jwt'); setError(null); }}
+                                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${authMode === 'jwt' ? 'bg-primary text-white shadow-md' : 'text-[var(--text-secondary)] hover:text-[var(--text-main)]'}`}
+                            >
+                                <LogIn size={13} className="inline mr-1.5" /> Credentials
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setAuthMode('demo'); setError(null); }}
+                                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${authMode === 'demo' ? 'bg-primary text-white shadow-md' : 'text-[var(--text-secondary)] hover:text-[var(--text-main)]'}`}
+                            >
+                                <Zap size={13} className="inline mr-1.5" /> Demo Uplink
+                            </button>
                         </div>
 
-                        <JWTPanel formType={formType} setFormType={setFormType} error={error} setError={setError} signupRole={signupRole} setSignupRole={setSignupRole} name={name} setName={setName} designation={designation} setDesignation={setDesignation} email={email} setEmail={setEmail} enrollmentNumber={enrollmentNumber} setEnrollmentNumber={setEnrollmentNumber} selectedBranch={selectedBranch} setSelectedBranch={setSelectedBranch} selectedDepartment={selectedDepartment} setSelectedDepartment={setSelectedDepartment} password={password} setPassword={setPassword} showPassword={showPassword} setShowPassword={setShowPassword} isLoading={isLoading} handleJWTSubmit={handleJWTSubmit} inputClass={inputClass} selectClass={selectClass} />
+                        {authMode === 'jwt' ? (
+                            <JWTPanel formType={formType} setFormType={setFormType} error={error} setError={setError} signupRole={signupRole} setSignupRole={setSignupRole} name={name} setName={setName} designation={designation} setDesignation={setDesignation} email={email} setEmail={setEmail} enrollmentNumber={enrollmentNumber} setEnrollmentNumber={setEnrollmentNumber} selectedBranch={selectedBranch} setSelectedBranch={setSelectedBranch} selectedDepartment={selectedDepartment} setSelectedDepartment={setSelectedDepartment} password={password} setPassword={setPassword} showPassword={showPassword} setShowPassword={setShowPassword} isLoading={isLoading} handleJWTSubmit={handleJWTSubmit} inputClass={inputClass} selectClass={selectClass} />
+                        ) : (
+                            <DemoPanel handleDemoLogin={handleDemoLogin} isLoading={isLoading} />
+                        )}
+
                         <div className="text-center space-y-2">
                             <Link to="/developer-profile" className="text-[10px] font-black uppercase tracking-[0.35em] text-primary hover:text-primary-dark transition-colors">Developed by Naman Lahariya</Link>
                             <p className="text-[8px] font-black uppercase tracking-[0.5em] text-[var(--text-secondary)] opacity-30">Institutional Command Protocol v2.8.4-RELEASE</p>

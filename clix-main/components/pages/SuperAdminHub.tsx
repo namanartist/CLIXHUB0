@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Club, User, Role, Notification, Venue } from '../../types';
 import { db } from '../../db';
+import { useNavigate } from 'react-router-dom';
 import {
   Shield,
   Plus,
@@ -26,48 +27,53 @@ import {
   Settings,
   Flame,
   Eye,
-  Command
+  Command,
+  MessageSquare
 } from 'lucide-react';
 
-const AdminHeader: React.FC<any> = ({ setIsModalOpen, currentUser }) => (
-  <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8 relative mb-8">
-    <div className="space-y-3">
-      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--primary-soft)] border border-[var(--border-color)]">
-        <div className="w-2 h-2 bg-[var(--primary)] rounded-full animate-pulse" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--primary)]">
-          {currentUser?.globalRole === Role.DEAN ? 'Dean Approval Portal' : 'System Administrator'}
-        </span>
+const AdminHeader: React.FC<any> = ({ setIsModalOpen, currentUser }) => {
+  const navigate = useNavigate();
+  return (
+    <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8 relative mb-8">
+      <div className="space-y-3">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--primary-soft)] border border-[var(--border-color)]">
+          <div className="w-2 h-2 bg-[var(--primary)] rounded-full animate-pulse" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-[var(--primary)]">
+            {currentUser?.globalRole === Role.DEAN ? 'Dean Approval Portal' : 'System Administrator'}
+          </span>
+        </div>
+        <div>
+          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-[var(--text-main)] leading-none font-display">
+            Admin <span className="text-[var(--primary)] font-black">Dashboard</span>
+          </h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-3 max-w-xl font-medium">
+            Manage institutional organizations, faculty delegations, and system-wide audits.
+          </p>
+        </div>
       </div>
-      <div>
-        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-[var(--text-main)] leading-none font-display">
-          Admin <span className="text-[var(--primary)] font-black">Dashboard</span>
-        </h1>
-        <p className="text-sm text-[var(--text-secondary)] mt-3 max-w-xl font-medium">
-          Manage institutional organizations, faculty delegations, and system-wide audits.
-        </p>
+      <div className="flex items-center gap-4 flex-wrap">
+        <button
+          onClick={() => navigate('/dashboard/chat')}
+          className="px-6 py-4 bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-main)] hover:border-primary/50 rounded-2xl font-black text-xs uppercase tracking-widest hover:-translate-y-1 active:scale-95 transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+        >
+          <MessageSquare size={18} className="text-primary" /> Campus Chat
+        </button>
+        <button
+          onClick={() => (window as any).openDataImporter?.()}
+          className="px-6 py-4 bg-slate-800 text-slate-200 border border-slate-700 hover:border-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:-translate-y-1 active:scale-95 transition-all flex items-center gap-2"
+        >
+          <Zap size={18} className="text-amber-400" /> Import Data
+        </button>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="px-8 py-4 bg-[var(--primary)] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:-translate-y-1 active:scale-95 transition-all flex items-center gap-3"
+        >
+          <Plus size={18} /> New Organization
+        </button>
       </div>
-    </div>
-    <div className="flex items-center gap-4">
-      <div className="hidden xl:flex items-center gap-3 px-6 py-4 uni-pill-card border border-[var(--border-color)] group cursor-pointer hover:border-[var(--primary)]/50 transition-all shadow-sm">
-        <Search size={18} className="text-[var(--text-secondary)] group-hover:text-[var(--primary)] transition-colors" />
-        <span className="text-xs font-bold text-[var(--text-secondary)]">Search Organizations...</span>
-        <Command size={14} className="text-[var(--text-secondary)] ml-4" />
-      </div>
-      <button
-        onClick={() => (window as any).openDataImporter?.()}
-        className="px-6 py-4 bg-slate-800 text-slate-200 border border-slate-700 hover:border-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:-translate-y-1 active:scale-95 transition-all flex items-center gap-2"
-      >
-        <Zap size={18} className="text-amber-400" /> Import Data
-      </button>
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className="px-8 py-4 bg-[var(--primary)] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:-translate-y-1 active:scale-95 transition-all flex items-center gap-3"
-      >
-        <Plus size={18} /> New Organization
-      </button>
-    </div>
-  </header>
-);
+    </header>
+  );
+};
 
 const AdminAnalytics: React.FC<any> = ({ clubsCount, pendingProposalsCount, facultyCount }) => {
   const stats = [
@@ -623,7 +629,7 @@ const SuperAdminHub: React.FC<Props> = ({
   const [newVenueData, setNewVenueData] = useState<Partial<Venue>>({ name: '', location: '', capacity: 0, amenities: [], status: 'Available', description: '' });
   const [newFaculty, setNewFaculty] = useState({ name: '', email: '', department: '', role: Role.FACULTY as Role.FACULTY | Role.DEAN, signatureFile: null as File | null });
 
-  const students = (allUsers || []).filter(u => u && (u.globalRole === Role.STUDENT || u.globalRole === 'Student' || !u.globalRole || u.globalRole !== Role.FACULTY));
+  const students = (allUsers || []).filter(u => u && (u.globalRole === Role.STUDENT || String(u.globalRole) === 'Student' || (u.globalRole !== Role.FACULTY && u.globalRole !== Role.DEAN && u.globalRole !== Role.SUPER_ADMIN)));
   const facultyMembers = (allUsers || []).filter(u => u && (u.globalRole === Role.FACULTY || u.globalRole === Role.DEAN));
   const filteredStudents = students.filter(s => s && ((s.name || '').toLowerCase().includes(appointSearch.toLowerCase()) || (s.enrollmentNumber || '').toLowerCase().includes(appointSearch.toLowerCase())));
   const filteredFacultyForAssign = facultyMembers.filter(f => f && ((f.name || '').toLowerCase().includes(facultyAssignSearch.toLowerCase()) || (f.email || '').toLowerCase().includes(facultyAssignSearch.toLowerCase())));
@@ -654,7 +660,7 @@ const SuperAdminHub: React.FC<Props> = ({
       name: newVenueData.name || `Venue ${Date.now()}`,
       location: newVenueData.location,
       capacity: Number(newVenueData.capacity) || 0,
-      amenities: Array.isArray(newVenueData.amenities) ? newVenueData.amenities : (newVenueData.amenities || '').toString().split(',').map(item => item.trim()).filter(Boolean),
+      amenities: Array.isArray(newVenueData.amenities) ? newVenueData.amenities : typeof newVenueData.amenities === 'string' ? (newVenueData.amenities as string).split(',').map(item => item.trim()).filter(Boolean) : [],
       status: newVenueData.status || 'Available',
       description: newVenueData.description || ''
     };

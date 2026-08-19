@@ -1,13 +1,17 @@
 import React from 'react';
 import { Zap, Award, Sparkles, Star, ArrowLeft, Globe, Users, Layers, Github, Linkedin, ExternalLink, Code, BookOpen, Shield, Cpu, Terminal, CheckCircle2, Rocket } from 'lucide-react';
 
+import { User } from '@/types';
+
 interface DevelopersProps {
   onBack?: () => void;
   isDarkMode: boolean;
   mode?: 'console' | 'public';
+  currentUser?: User;
+  allUsers?: User[];
 }
 
-const Developers: React.FC<DevelopersProps> = ({ onBack, isDarkMode, mode = 'console' }) => {
+const Developers: React.FC<DevelopersProps> = ({ onBack, isDarkMode, mode = 'console', currentUser, allUsers }) => {
   const dark = isDarkMode;
   const isPublic = mode === 'public';
 

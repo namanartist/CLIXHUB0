@@ -34,10 +34,10 @@ interface JWTPanelProps {
 export const JWTPanel: React.FC<JWTPanelProps> = ({
   formType, setFormType, error, setError, signupRole, setSignupRole, name, setName, designation, setDesignation, email, setEmail, enrollmentNumber, setEnrollmentNumber, selectedBranch, setSelectedBranch, selectedDepartment, setSelectedDepartment, password, setPassword, showPassword, setShowPassword, isLoading, handleJWTSubmit, inputClass, selectClass
 }) => (
-  <div className="uni-glass rounded-2xl p-10 space-y-7">
+  <div className="uni-glass rounded-2xl p-5 sm:p-8 md:p-10 space-y-5 sm:space-y-7">
     <div className="space-y-1">
-      <h3 className="text-3xl font-black tracking-tighter">{formType === 'login' ? 'System Login' : 'Create Node'}</h3>
-      <p className="text-sm font-medium text-[var(--text-secondary)]">{formType === 'login' ? 'Provide institutional credentials' : 'Register your institutional identity'}</p>
+      <h3 className="text-2xl sm:text-3xl font-black tracking-tighter">{formType === 'login' ? 'System Login' : 'Create Node'}</h3>
+      <p className="text-xs sm:text-sm font-medium text-[var(--text-secondary)]">{formType === 'login' ? 'Provide institutional credentials' : 'Register your institutional identity'}</p>
     </div>
     <div className="flex gap-4 border-b border-[var(--border-color)] pb-4">
       {(['login', 'signup'] as const).map(t => (
@@ -74,3 +74,5 @@ export const JWTPanel: React.FC<JWTPanelProps> = ({
     </form>
   </div>
 );
+
+export default JWTPanel;

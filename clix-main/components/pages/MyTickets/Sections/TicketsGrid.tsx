@@ -8,7 +8,7 @@ interface TicketsGridProps {
   events: Event[];
   clubs: Club[];
   isDarkMode: boolean;
-  filter: 'active' | 'past';
+  filter: 'all' | 'active' | 'past';
   handlePreview: (reg: Registration) => void;
   handleDownload: (reg: Registration) => void;
 }
@@ -31,10 +31,24 @@ export const TicketsGrid: React.FC<TicketsGridProps> = ({
   ) : (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
       {filteredRegistrations.map(reg => {
-        const event = events.find(e => e.id === reg.eventId);
-        const club = clubs.find(c => c.id === event?.clubId);
+        const rawEvent = events.find(e => e.id === reg.eventId);
+        const event = rawEvent || {
+          id: reg.eventId,
+          title: (reg as any).eventTitle || (reg as any).title || (reg.ticketId ? `Event Pass (${reg.ticketId})` : 'MITS Campus Event'),
+          clubId: (reg as any).clubId || '',
+          type: (reg as any).type || (reg.paymentType === 'Free' ? 'Free' : 'Paid'),
+          date: (reg as any).date || (reg as any).eventDate || new Date().toISOString().split('T')[0],
+          venue: (reg as any).venue || 'MITS Main Campus',
+          description: 'Official student registration and admission pass.',
+        };
+        const rawClub = clubs.find(c => c.id === event?.clubId);
+        const club = rawClub || {
+          id: event.clubId || 'mits-general',
+          name: (reg as any).clubName || (event as any).clubName || 'MITS Institutional Event',
+          themeColor: '#2563eb',
+        };
         const isApproved = reg.status === 'Approved';
-        const ticketColor = club?.themeColor || '#4318FF';
+        const ticketColor = club.themeColor || '#2563eb';
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${reg.ticketId || reg.id}`;
         
         return (
@@ -57,11 +71,11 @@ export const TicketsGrid: React.FC<TicketsGridProps> = ({
                             <div>
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[var(--text-main)] font-black shadow-lg" style={{ backgroundColor: ticketColor }}>
-                                            {club?.name[0]}
+                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black shadow-lg" style={{ backgroundColor: ticketColor }}>
+                                            {club.name[0] || 'M'}
                                         </div>
                                         <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                                            {club?.name} Presents
+                                            {club.name} Presents
                                         </span>
                                     </div>
                                     {isApproved ? (
@@ -75,27 +89,27 @@ export const TicketsGrid: React.FC<TicketsGridProps> = ({
                                     )}
                                 </div>
                                 
-                                <h3 className={`text-3xl font-black tracking-tighter leading-tight mb-2 ${isDarkMode ? 'text-white' : 'text-[#2B3674]'}`}>
-                                    {event?.title}
+                                <h3 className={`text-2xl sm:text-3xl font-black tracking-tighter leading-tight mb-2 ${isDarkMode ? 'text-white' : 'text-[#2B3674]'}`}>
+                                    {event.title}
                                 </h3>
                                 <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">
-                                    {event?.type} Access • General Entry
+                                    {event.type || 'General'} Access • Entry ID: {reg.ticketId || reg.id}
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-6">
+                            <div className="grid grid-cols-2 gap-4 sm:gap-6">
                                 <div className={`p-4 rounded-2xl ${isDarkMode ? 'bg-[#0B1437]' : 'bg-[#F4F7FE]'}`}>
                                     <p className="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1">Date & Time</p>
-                                    <div className={`flex items-center gap-2 text-sm font-bold ${isDarkMode ? 'text-white' : 'text-[#2B3674]'}`}>
-                                        <Calendar size={16} className="text-primary" /> 
-                                        {event?.date}
+                                    <div className={`flex items-center gap-2 text-xs sm:text-sm font-bold ${isDarkMode ? 'text-white' : 'text-[#2B3674]'}`}>
+                                        <Calendar size={16} className="text-primary shrink-0" /> 
+                                        <span className="truncate">{event.date || 'Scheduled'}</span>
                                     </div>
                                 </div>
                                 <div className={`p-4 rounded-2xl ${isDarkMode ? 'bg-[#0B1437]' : 'bg-[#F4F7FE]'}`}>
                                     <p className="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1">Location</p>
-                                    <div className={`flex items-center gap-2 text-sm font-bold ${isDarkMode ? 'text-white' : 'text-[#2B3674]'}`}>
-                                        <MapPin size={16} className="text-rose-500" /> 
-                                        MITS Campus
+                                    <div className={`flex items-center gap-2 text-xs sm:text-sm font-bold ${isDarkMode ? 'text-white' : 'text-[#2B3674]'}`}>
+                                        <MapPin size={16} className="text-rose-500 shrink-0" /> 
+                                        <span className="truncate">{event.venue || 'MITS Campus'}</span>
                                     </div>
                                 </div>
                             </div>

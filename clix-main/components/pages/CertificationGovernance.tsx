@@ -802,9 +802,9 @@ const CertificationGovernance: React.FC<Props> = ({ club, events, registrations,
         {clubBatches
           .filter(b => b.status === 'Approved')
           .flatMap(b => b.certificates || [])
-          .map(cert => (
+          .map((cert, idx) => (
             <CertificatePreview
-              key={`print-pool-${cert.serialNumber}`}
+              key={`print-pool-${cert.serialNumber || cert.id || idx}-${idx}`}
               cert={cert}
               config={designConfig}
               club={club}

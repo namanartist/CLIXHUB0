@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { User, Club, Applicant, Event, Role, ClubRole, AuditLog, Registration, Quotation, Achievement, CertificateBatch, IssuedCertificate, Proposal, Venue } from './types';
 import { useAuth } from './lib/AuthContext';
-import { io } from 'socket.io-client';
+import { getSocket, syncSocketRooms } from './lib/socket';
+import { supabase } from './lib/supabaseClient';
 
 import { mapTabForScopeChange, isTabValidForScope, getDefaultHomeTab } from './lib/mobileNavConfig';
+import { authService } from './lib/authService';
+import { DEMO_USERS, DEMO_CLUBS, DEMO_EVENTS, DEMO_VENUES, DEMO_REGISTRATIONS, DEMO_APPLICANTS, DEMO_LOGS, DEMO_BATCHES, DEMO_PROPOSALS } from './constants';
 import EventRegistrationPage from './components/pages/EventRegistrationPage';
 import Footer from './components/Footer';
 import JWTAuthPage from './components/pages/JWTAuthPage';
@@ -69,15 +72,41 @@ import {
   notifyApplicationSubmitted,
   notifyRecruitmentStatus,
 } from './lib/notifications';
+import { useToast } from './components/ui/Toast';
 
 const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const toast = useToast();
   const { user: authUser, isAuthenticated, loading: authLoading, logout } = useAuth();
 
   const detectedSubdomain = getSubdomain();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => authUser || authService.getUser());
+  const activeUser = currentUser || authUser;
+
+  useEffect(() => {
+    if (authUser) {
+      if (!currentUser || currentUser.id !== authUser.id) {
+        setCurrentUser(authUser);
+      }
+    } else if (!authLoading) {
+      const stored = authService.getUser();
+      if (stored && (!currentUser || currentUser.id !== stored.id)) {
+        setCurrentUser(stored);
+      } else if (!stored && currentUser) {
+        setCurrentUser(null);
+      }
+    }
+  }, [authUser, authLoading]);
+
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('clix_theme');
+      if (saved) return saved === 'dark';
+      return window.matchMedia?.('(prefers-color-scheme: dark)').matches || false;
+    }
+    return false;
+  });
 
   // Note: For activeContext & activeTab we parse the current URL
   // Default values
@@ -105,110 +134,55 @@ const App: React.FC = () => {
     logs: AuditLog[];
     batches: CertificateBatch[];
     proposals?: Proposal[];
-  }>({
-    users: [],
-    clubs: [],
-    venues: [],
-    events: [],
-    registrations: [],
-    applicants: [],
-    logs: [],
-    batches: [],
-    proposals: []
+  }>(() => {
+    let offlineClubs = [];
+    let offlineEvents = [];
+    let offlineVenues = [];
+    let offlineUsers = [];
+    let offlineRegs = [];
+    let offlineApps = [];
+    let offlineLogs = [];
+    let offlineBatches = [];
+    let offlineProposals = [];
+    try {
+      const c = localStorage.getItem('ccms_offline_clubs');
+      if (c) offlineClubs = JSON.parse(c);
+      const e = localStorage.getItem('ccms_offline_events');
+      if (e) offlineEvents = JSON.parse(e);
+      const v = localStorage.getItem('ccms_offline_venues');
+      if (v) offlineVenues = JSON.parse(v);
+      const u = localStorage.getItem('ccms_offline_users');
+      if (u) offlineUsers = JSON.parse(u);
+      const r = localStorage.getItem('ccms_offline_registrations');
+      if (r) offlineRegs = JSON.parse(r);
+      const a = localStorage.getItem('ccms_offline_applicants');
+      if (a) offlineApps = JSON.parse(a);
+      const l = localStorage.getItem('ccms_offline_logs');
+      if (l) offlineLogs = JSON.parse(l);
+      const b = localStorage.getItem('ccms_offline_batches');
+      if (b) offlineBatches = JSON.parse(b);
+      const p = localStorage.getItem('ccms_offline_proposals');
+      if (p) offlineProposals = JSON.parse(p);
+    } catch {}
+
+    return {
+      users: offlineUsers.length ? offlineUsers : DEMO_USERS,
+      clubs: offlineClubs.length ? offlineClubs : DEMO_CLUBS,
+      venues: offlineVenues.length ? offlineVenues : DEMO_VENUES,
+      events: offlineEvents.length ? offlineEvents : DEMO_EVENTS,
+      registrations: offlineRegs.length ? offlineRegs : DEMO_REGISTRATIONS,
+      applicants: offlineApps.length ? offlineApps : DEMO_APPLICANTS,
+      logs: offlineLogs.length ? offlineLogs : DEMO_LOGS,
+      batches: offlineBatches.length ? offlineBatches : DEMO_BATCHES,
+      proposals: offlineProposals.length ? offlineProposals : DEMO_PROPOSALS
+    };
   });
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        await db.initialize();
-
-        // Load all required data in parallel
-        const [clubs, events, logs, users] = await Promise.all([
-          db.getClubs().catch(() => []),
-          db.getEvents().catch(() => []),
-          db.getLogs().catch(() => []),
-          db.getUsers().catch(() => [])
-        ]);
-
-        setData(prev => ({ ...prev, clubs, events, logs, users }));
-
-        // If user is authenticated, load remaining data
-        if (isAuthenticated) {
-          await refreshData();
-        }
-      } catch (err) {
-        console.error("Initialization Failed:", err);
-        // Continue anyway with empty data
-        setData(prev => ({ ...prev }));
-      }
-    };
-
-    init();
-  }, [isAuthenticated]);
-
-  // Sync Auth State from Context — also refresh all data when user logs in
-  useEffect(() => {
-    setCurrentUser(authUser);
-    if (authUser) {
-      refreshData();
-    }
-  }, [authUser]);
-
-  // Protect Routes - redirect to login if not authenticated
-  useEffect(() => {
-    const protectedRoutes = ['/dashboard', '/club'];
-    const isProtectedRoute = protectedRoutes.some(route => location.pathname.startsWith(route));
-
-    if (isProtectedRoute && !isAuthenticated) {
-      navigate('/');
-    }
-  }, [isAuthenticated, location.pathname, navigate]);
-
-  // Sync URL state to Virtual State
-  useEffect(() => {
-    const path = location.pathname;
-    if (path.startsWith('/club/')) {
-      const parts = path.split('/');
-      setActiveContext(parts[2]); // The club ID
-      setActiveTab(parts[3] || 'club-dashboard');
-    } else if (path.startsWith('/dashboard/')) {
-      setActiveContext('Global');
-      setActiveTab(path.split('/')[2]);
-    } else if (path === '/dashboard') {
-      setActiveContext('Global');
-      setActiveTab('dashboard');
-    }
-  }, [location.pathname]);
-
-  // Keep active tab valid when scope changes via URL (back/forward, deep links)
-  useEffect(() => {
-    if (!currentUser) return;
-    const role = currentUser.globalRole;
-    if (!isTabValidForScope(activeTab, activeContext)) {
-      const mapped = mapTabForScopeChange(activeTab, activeContext, role);
-      const fallback = getDefaultHomeTab(activeContext, role);
-      const tab = isTabValidForScope(mapped, activeContext) ? mapped : fallback;
-      if (tab !== activeTab) {
-        if (activeContext === 'Global') {
-          navigate(tab === 'dashboard' ? '/dashboard' : `/dashboard/${tab}`, { replace: true });
-        } else {
-          navigate(`/club/${activeContext}/${tab}`, { replace: true });
-        }
-      }
-    }
-  }, [activeContext, activeTab, currentUser]);
-
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
-
-
+  const isRefreshingRef = React.useRef(false);
 
   const refreshData = async () => {
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
     try {
       const dbUsers = await db.getUsers();
       const [clubs, venues, events, registrations, applicants, logs, batches, proposals] = await Promise.all([
@@ -224,50 +198,92 @@ const App: React.FC = () => {
       setData(prev => ({ ...prev, users: dbUsers, clubs, venues, events, registrations, applicants, logs, batches, proposals: proposals || [] }));
     } catch (err) {
       console.warn("Failed to fetch all data, offline fallback active.");
+    } finally {
+      isRefreshingRef.current = false;
     }
   };
 
-  // ─── HIGH-FREQUENCY 1-SECOND DATABASE SYNC & REALTIME SOCKET SYNC ───
   useEffect(() => {
-    refreshData();
-
-    // Sync database every 1 second continuously
-    const syncInterval = setInterval(() => {
-      refreshData();
-    }, 1000);
-
-    // Instant Socket.io event sync (Only connect to WebSocket servers, not serverless hosts like Vercel)
-    const isVercel = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app');
-    const configuredApi = import.meta.env.VITE_API_BASE;
-    const socketUrl = configuredApi || (!isVercel ? (import.meta.env.PROD ? '' : 'http://localhost:4000') : '');
-
-    let socket: any;
-    if (socketUrl) {
+    const init = async () => {
       try {
-        socket = io(socketUrl, { transports: ['websocket', 'polling'], timeout: 3000 });
-        const entities = ['users', 'clubs', 'events', 'venues', 'registrations', 'certificates', 'batches', 'applicants', 'proposals', 'activities', 'logs'];
-        entities.forEach(ent => {
-          socket.on(`${ent}:change`, () => {
-            refreshData();
-          });
-        });
-        socket.on('db:sync', () => {
-          refreshData();
-        });
-      } catch (e) {}
+        await db.initialize();
+        await refreshData();
+      } catch (err) {
+        console.error("Initialization Failed:", err);
+      }
+    };
+
+    init();
+  }, []);
+
+  // Sync Auth State from Context
+  useEffect(() => {
+    setCurrentUser(authUser);
+  }, [authUser]);
+
+  // Sync URL state to Virtual State
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.startsWith('/club/')) {
+      const parts = path.split('/');
+      const nextContext = parts[2] || 'Global';
+      const nextTab = parts[3] || 'club-dashboard';
+      setActiveContext(nextContext);
+      setActiveTab(nextTab);
+    } else if (path.startsWith('/dashboard/')) {
+      const nextTab = path.split('/')[2] || 'dashboard';
+      setActiveContext('Global');
+      setActiveTab(nextTab);
+    } else if (path === '/dashboard') {
+      setActiveContext('Global');
+      setActiveTab('dashboard');
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('clix_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('clix_theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  // ─── STABLE REALTIME SYNC & PERSISTENT SOCKET SYNC ───
+  useEffect(() => {
+    // Gentle fallback background polling (every 20 seconds, only when tab is visible)
+    const syncInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    }, 20000);
+
+    // Persistent Socket.io real-time event sync
+    const socket = syncSocketRooms(currentUser, data.clubs);
+    if (socket) {
+      const entities = ['users', 'clubs', 'events', 'venues', 'registrations', 'certificates', 'batches', 'applicants', 'proposals', 'activities', 'logs', 'messages'];
+      const handleEntityChange = () => refreshData();
+      entities.forEach(ent => {
+        socket.on(`${ent}:change`, handleEntityChange);
+      });
+      socket.on('db:sync', handleEntityChange);
     }
 
-    const handleFocus = () => refreshData();
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    };
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleFocus);
 
     return () => {
       clearInterval(syncInterval);
-      if (socket) socket.disconnect();
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };
-  }, []);
+  }, [currentUser?.id]);
 
   // --- AUTOMATION: Certificate on Attendance ---
   const handleMarkAttendance = async (registrationId: string, status: boolean) => {
@@ -382,10 +398,15 @@ const App: React.FC = () => {
       setCurrentUser(user);
       // Await refreshData so clubs/events are populated before the dashboard renders
       await refreshData();
+      toast.success('Welcome to CLIX Hub', `Logged in successfully as ${user.name}`);
       navigate('/dashboard');
-    } catch (err) {
+    } catch (err: any) {
       console.error("Demo Login Error:", err);
-      alert("Demo login failed. Please ensure the backend is running and seeded.");
+      toast.error(
+        'Demo Login Failed',
+        err.message || 'Could not verify demo credentials. Please check backend server connectivity.',
+        err.stack
+      );
     }
   };
 
@@ -594,9 +615,10 @@ const App: React.FC = () => {
       setData(prev => ({ ...prev, clubs: [club, ...prev.clubs.filter(c => c.id !== club.id)] }));
       await db.addClub(club);
       await refreshData();
-    } catch (err) {
+      toast.success('Club Created', `Successfully provisioned node "${club.name}"`);
+    } catch (err: any) {
       console.error("handleAddClub Error:", err);
-      alert("Failed to create club. Please check backend API server connection.");
+      toast.error('Failed to Create Club', err.message || 'Please check backend server connection.', err.stack);
     }
   };
 
@@ -605,9 +627,10 @@ const App: React.FC = () => {
       setData(prev => ({ ...prev, venues: [venue, ...prev.venues.filter(v => v.id !== venue.id)] }));
       await db.saveVenue(venue);
       await refreshData();
-    } catch (err) {
+      toast.success('Venue Saved', `Venue "${venue.name}" is now available for bookings.`);
+    } catch (err: any) {
       console.error("handleAddVenue Error:", err);
-      alert("Failed to save the venue. Please try again.");
+      toast.error('Failed to Save Venue', err.message || 'Could not commit venue to database.', err.stack);
     }
   };
 
@@ -622,11 +645,13 @@ const App: React.FC = () => {
     const club = data.clubs.find(c => c.id === event.clubId);
     notifyEventCreated(event.title, club?.name);
     await refreshData();
+    toast.success('Event Saved', `"${event.title}" saved successfully.`);
   };
   const handleDeleteEvent = async (eventId: string) => {
     setData(prev => ({ ...prev, events: prev.events.filter(e => e.id !== eventId) }));
     await db.deleteEvent(eventId);
     await refreshData();
+    toast.info('Event Removed', 'The event has been deleted.');
   };
   const handleApproveEvent = async (id: string) => {
     const event = data.events.find(e => e.id === id);
@@ -637,6 +662,7 @@ const App: React.FC = () => {
       const club = data.clubs.find(c => c.id === event.clubId);
       notifyEventCreated(event.title, club?.name);
       await refreshData();
+      toast.success('Event Approved', `"${event.title}" is now officially approved.`);
     }
   };
 
@@ -647,7 +673,7 @@ const App: React.FC = () => {
       setData(prev => ({ ...prev, events: prev.events.map(e => e.id === id ? updatedEvent : e) }));
       await db.saveEvent(updatedEvent);
       await refreshData();
-      alert(`Event proposal rejected successfully.`);
+      toast.warning('Event Declined', `Event proposal "${event.title}" has been rejected.`);
     }
   };
 
@@ -787,8 +813,9 @@ const App: React.FC = () => {
       const proposal = data.proposals?.find(p => p.id === id);
       if (!proposal) return;
 
-      const isDean = currentUser?.globalRole === Role.DEAN || currentUser?.globalRole === 'Dean';
-      const isSuperAdmin = currentUser?.globalRole === Role.SUPER_ADMIN || currentUser?.globalRole === 'Super Admin';
+      const roleStr = String(currentUser?.globalRole || '');
+      const isDean = roleStr === Role.DEAN || roleStr === 'Dean';
+      const isSuperAdmin = roleStr === Role.SUPER_ADMIN || roleStr === 'Super Admin';
 
       // ─── RBAC PERMISSION CHECKS ───
       if (!isDean && !isSuperAdmin) {
@@ -921,10 +948,10 @@ const App: React.FC = () => {
       }
 
       await refreshData();
-      alert(`Unit "${proposal.title}" successfully provisioned and activated on CLIX Hub!`);
-    } catch (err) {
+      toast.success('Proposal Approved', `Unit "${proposal.title}" successfully provisioned and activated on CLIX Hub!`);
+    } catch (err: any) {
       console.error("handleApproveProposal Failed:", err);
-      alert("Failed to approve proposal. Please check console logs.");
+      toast.error('Proposal Approval Failed', err.message || 'Failed to approve proposal. Please check system logs.', err.stack);
     }
   };
 
@@ -933,11 +960,12 @@ const App: React.FC = () => {
       const proposal = data.proposals?.find(p => p.id === id);
       if (!proposal) return;
 
-      const isDean = currentUser?.globalRole === Role.DEAN || currentUser?.globalRole === 'Dean';
-      const isSuperAdmin = currentUser?.globalRole === Role.SUPER_ADMIN || currentUser?.globalRole === 'Super Admin';
+      const roleStr = String(currentUser?.globalRole || '');
+      const isDean = roleStr === Role.DEAN || roleStr === 'Dean';
+      const isSuperAdmin = roleStr === Role.SUPER_ADMIN || roleStr === 'Super Admin';
 
       if (!isDean && !isSuperAdmin) {
-        alert('RBAC Violation: You do not have authority to decline institutional proposals.');
+        toast.warning('Access Denied', 'RBAC Restriction: Only the Dean of Student Welfare or Super Admin has authorization to decline institutional proposals.');
         return;
       }
 
@@ -968,9 +996,10 @@ const App: React.FC = () => {
       });
 
       await refreshData();
-      alert(`Proposal rejected successfully.`);
-    } catch (err) {
+      toast.warning('Proposal Declined', `Proposal "${proposal.title}" has been rejected.`);
+    } catch (err: any) {
       console.error("handleRejectProposal Failed:", err);
+      toast.error('Operation Failed', err.message || 'Could not update proposal status.');
     }
   };
 
@@ -1008,33 +1037,76 @@ const App: React.FC = () => {
 
   // Define Dashboard Contents Switcher based on URL
   const renderDashboardContent = () => {
-    if (!authUser) return <Navigate to="/auth" replace />;
-    if (!currentUser) return <div className="flex h-screen w-full items-center justify-center font-black uppercase tracking-widest text-[var(--text-main)] animate-pulse">Initializing Workspace...</div>;
-
+    const userToRender = activeUser || currentUser || authUser;
+    if (!userToRender) {
+      if (authLoading) {
+        return (
+          <div className="flex h-96 w-full items-center justify-center">
+            <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          </div>
+        );
+      }
+      return <Navigate to="/auth" replace />;
+    }
 
     if (activeContext === 'Global') {
-      const userRoleStr = String(currentUser.globalRole || '').toLowerCase();
-      const userEmail = (currentUser.email || '').toLowerCase();
-      const isSuperAdmin = currentUser.globalRole === Role.SUPER_ADMIN || userRoleStr === 'super admin' || userRoleStr === 'super_admin' || userEmail === 'admin@mitsgwl.ac.in';
-      const isDean = currentUser.globalRole === Role.DEAN || userRoleStr === 'dean' || userEmail === 'dean.sw@mitsgwl.ac.in' || userEmail.includes('dean');
-      const isFaculty = !isDean && !isSuperAdmin && (currentUser.globalRole === Role.FACULTY || userRoleStr === 'faculty' || userEmail.includes('faculty') || !!currentUser.designation);
+      const userRoleStr = String(userToRender.globalRole || '').toLowerCase();
+      const userEmail = (userToRender.email || '').toLowerCase();
+      const isSuperAdmin = userToRender.globalRole === Role.SUPER_ADMIN || userRoleStr === 'super admin' || userRoleStr === 'super_admin' || userEmail === 'admin@mitsgwl.ac.in';
+      const isDean = userToRender.globalRole === Role.DEAN || userRoleStr === 'dean' || userEmail === 'dean.sw@mitsgwl.ac.in' || userEmail.includes('dean');
+      const isFaculty = !isDean && !isSuperAdmin && (userToRender.globalRole === Role.FACULTY || userRoleStr === 'faculty' || userEmail.includes('faculty') || !!userToRender.designation);
+
+      const renderDefaultRoleDashboard = () => {
+        if (isSuperAdmin) {
+          return <SuperAdminHub clubs={data.clubs || []} allUsers={data.users || []} venues={data.venues || []} currentUser={userToRender} onFreeze={handleFreezeClub} onEnterClub={handleContextChange} onAddClub={handleAddClub} onAddVenue={handleAddVenue} onAppointPresident={handleAppointPresident} onAssignFaculty={handleAssignFaculty} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} isDarkMode={isDarkMode} proposals={data.proposals || []} onApproveProposal={handleApproveProposal} />;
+        } else if (isDean) {
+          return <DeanDashboard currentUser={userToRender} clubs={data.clubs || []} allUsers={data.users || []} events={data.events || []} batches={data.batches || []} proposals={data.proposals || []} onApproveProposal={handleApproveProposal} onRejectProposal={handleRejectProposal} onApproveBatch={handleApproveBatchGlobal} onRejectBatch={handleRejectBatchGlobal} onEnterClub={handleContextChange} onNavigate={handleTabChange} />;
+        } else if (isFaculty) {
+          return <FacultyFeed user={userToRender} clubs={data.clubs || []} onManageClub={handleContextChange} />;
+        } else {
+          const studentCertCount = (data.batches || []).flatMap(b => b.certificates || []).filter(c =>
+            c.studentId === userToRender.id ||
+            (userToRender.enrollmentNumber && c.enrollmentNumber?.toLowerCase() === userToRender.enrollmentNumber?.toLowerCase()) ||
+            (userToRender.name && c.studentName?.toLowerCase() === userToRender.name?.toLowerCase()) ||
+            (userToRender.email && c.email?.toLowerCase() === userToRender.email?.toLowerCase())
+          ).length;
+          const currentUserRegistrations = (data.registrations || []).filter(r => {
+            const sId = String(r.studentId || '').toLowerCase().trim();
+            const cId = String(userToRender.id || '').toLowerCase().trim();
+            const sRoll = String(r.studentRoll || '').toLowerCase().trim();
+            const cRoll = String(userToRender.enrollmentNumber || userToRender.rollNo || '').toLowerCase().trim();
+            const sName = String(r.studentName || '').toLowerCase().trim();
+            const cName = String(userToRender.name || '').toLowerCase().trim();
+            const cEmail = String(userToRender.email || '').toLowerCase().trim();
+
+            return (
+              (cId && sId === cId) ||
+              (cRoll && sRoll === cRoll) ||
+              (cName && sName === cName) ||
+              (cEmail && sId === cEmail)
+            );
+          });
+          const currentUserApplicants = (data.applicants || []).filter(a => {
+            const sName = String(a.name || '').toLowerCase().trim();
+            const cName = String(userToRender.name || '').toLowerCase().trim();
+            const sRoll = String(a.rollNumber || '').toLowerCase().trim();
+            const cRoll = String(userToRender.enrollmentNumber || userToRender.rollNo || '').toLowerCase().trim();
+            const sEmail = String(a.email || '').toLowerCase().trim();
+            const cEmail = String(userToRender.email || '').toLowerCase().trim();
+            return (cName && sName === cName) || (cRoll && sRoll === cRoll) || (cEmail && sEmail === cEmail);
+          });
+          return <GlobalStudentDashboard user={userToRender} events={data.events || []} clubs={data.clubs || []} certCount={studentCertCount} onRegister={handleRegisterEvent} isDarkMode={isDarkMode} registrations={currentUserRegistrations} applicants={currentUserApplicants} onNavigateTab={handleTabChange} />;
+        }
+      };
 
       switch (activeTab) {
         case 'dashboard':
         case '':
-          if (isSuperAdmin) {
-            return <SuperAdminHub clubs={data.clubs || []} allUsers={data.users || []} venues={data.venues || []} currentUser={currentUser} onFreeze={handleFreezeClub} onEnterClub={handleContextChange} onAddClub={handleAddClub} onAddVenue={handleAddVenue} onAppointPresident={handleAppointPresident} onAssignFaculty={handleAssignFaculty} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} isDarkMode={isDarkMode} proposals={data.proposals || []} onApproveProposal={handleApproveProposal} />;
-          } else if (isDean) {
-            return <DeanDashboard currentUser={currentUser} clubs={data.clubs || []} allUsers={data.users || []} events={data.events || []} batches={data.batches || []} proposals={data.proposals || []} onApproveProposal={handleApproveProposal} onRejectProposal={handleRejectProposal} onApproveBatch={handleApproveBatchGlobal} onRejectBatch={handleRejectBatchGlobal} onEnterClub={handleContextChange} onNavigate={handleTabChange} />;
-          } else if (isFaculty) {
-            return <FacultyFeed user={currentUser} clubs={data.clubs || []} onManageClub={handleContextChange} />;
-          } else {
-            return <GlobalStudentDashboard user={currentUser} events={data.events || []} clubs={data.clubs || []} certCount={(data.registrations || []).filter(r => r.studentId === currentUser.id && r.certificateId).length} onRegister={handleRegisterEvent} isDarkMode={isDarkMode} registrations={data.registrations || []} applicants={data.applicants || []} onNavigateTab={handleTabChange} />;
-          }
+          return renderDefaultRoleDashboard();
         case 'dean-dashboard':
-          return <DeanDashboard currentUser={currentUser} clubs={data.clubs || []} allUsers={data.users || []} events={data.events || []} batches={data.batches || []} proposals={data.proposals || []} onApproveProposal={handleApproveProposal} onRejectProposal={handleRejectProposal} onApproveBatch={handleApproveBatchGlobal} onRejectBatch={handleRejectBatchGlobal} onEnterClub={handleContextChange} onNavigate={handleTabChange} />;
-        case 'admin-dashboard': return <SuperAdminHub clubs={data.clubs || []} allUsers={data.users || []} venues={data.venues || []} currentUser={currentUser} onFreeze={handleFreezeClub} onEnterClub={handleContextChange} onAddClub={handleAddClub} onAddVenue={handleAddVenue} onAppointPresident={handleAppointPresident} onAssignFaculty={handleAssignFaculty} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} isDarkMode={isDarkMode} proposals={data.proposals || []} onApproveProposal={handleApproveProposal} />;
-        case 'chat': return <ChatSystem user={currentUser} clubs={data.clubs} events={data.events} registrations={data.registrations} allUsers={data.users} activeContext={activeContext} isDarkMode={isDarkMode} />;
+          return <DeanDashboard currentUser={userToRender} clubs={data.clubs || []} allUsers={data.users || []} events={data.events || []} batches={data.batches || []} proposals={data.proposals || []} onApproveProposal={handleApproveProposal} onRejectProposal={handleRejectProposal} onApproveBatch={handleApproveBatchGlobal} onRejectBatch={handleRejectBatchGlobal} onEnterClub={handleContextChange} onNavigate={handleTabChange} />;
+        case 'admin-dashboard': return <SuperAdminHub clubs={data.clubs || []} allUsers={data.users || []} venues={data.venues || []} currentUser={userToRender} onFreeze={handleFreezeClub} onEnterClub={handleContextChange} onAddClub={handleAddClub} onAddVenue={handleAddVenue} onAppointPresident={handleAppointPresident} onAssignFaculty={handleAssignFaculty} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} isDarkMode={isDarkMode} proposals={data.proposals || []} onApproveProposal={handleApproveProposal} />;
+        case 'chat': return <ChatSystem user={userToRender} clubs={data.clubs} events={data.events} registrations={data.registrations} allUsers={data.users} activeContext={activeContext} isDarkMode={isDarkMode} />;
         case 'venue-availability': return <VenueAvailability venues={data.venues} events={data.events} onAddVenue={handleAddVenue} isDarkMode={isDarkMode} />;
         case 'user-registry':
         case 'student-registry':
@@ -1042,14 +1114,14 @@ const App: React.FC = () => {
         case 'clubs': return <GlobalClubs clubs={data.clubs} isDarkMode={isDarkMode} onEnterClub={handleContextChange} />;
         case 'analytics': return <GlobalAnalytics clubs={data.clubs} users={data.users} events={data.events} registrations={data.registrations} applicants={data.applicants} isDarkMode={isDarkMode} />;
         case 'global-audit': return <SystemLogs logs={data.logs} isDarkMode={isDarkMode} />;
-        case 'faculty-dashboard': return <FacultyFeed user={currentUser} clubs={data.clubs} onManageClub={handleContextChange} />;
+        case 'faculty-dashboard': return <FacultyFeed user={userToRender} clubs={data.clubs} onManageClub={handleContextChange} />;
         case 'approvals': return (
           <FacultyOversight
             events={data.events}
             clubs={data.clubs}
             batches={data.batches}
             proposals={data.proposals}
-            currentUser={currentUser}
+            currentUser={userToRender}
             onApproveEvent={handleApproveEvent}
             onRejectEvent={handleRejectEvent}
             onApproveBatch={handleApproveBatchGlobal}
@@ -1058,17 +1130,62 @@ const App: React.FC = () => {
             onRejectProposal={handleRejectProposal}
           />
         );
-        case 'proposal-workflow': return <ProposalWorkflowPage currentUser={currentUser} proposals={data.proposals} onSubmitProposal={handleProposeUnit} onApproveProposal={handleApproveProposal} isDarkMode={isDarkMode} />;
+        case 'proposal-workflow': return <ProposalWorkflowPage currentUser={userToRender} proposals={data.proposals} onSubmitProposal={handleProposeUnit} onApproveProposal={handleApproveProposal} isDarkMode={isDarkMode} />;
         case 'reports': return <InstitutionalKPIs clubs={data.clubs} events={data.events} registrations={data.registrations} applicants={data.applicants} />;
-        case 'profile': return <StudentProfile user={currentUser} onSave={handleUpdateUser} isDarkMode={isDarkMode} registrations={data.registrations} applicants={data.applicants} events={data.events} />;
-        case 'recruitment': return <MyApplications applicants={data.applicants} clubs={data.clubs} userName={currentUser.name} isDarkMode={isDarkMode} onUpdateStatus={handleApplicantMove} />;
-        case 'events': return <CampusEvents events={data.events} clubs={data.clubs} registrations={data.registrations} onRegister={handleRegisterEvent} isDarkMode={isDarkMode} user={currentUser} />;
-        case 'my-certificates': return <MyCertificates currentUser={currentUser!} batches={data.batches} />;
-        case 'tickets': return <MyTickets registrations={data.registrations.filter(r => r.studentId === currentUser.id || r.studentName === currentUser.name || (currentUser.enrollmentNumber && r.studentRoll === currentUser.enrollmentNumber))} events={data.events} clubs={data.clubs} isDarkMode={isDarkMode} />;
-        case 'payments': return <MyPayments registrations={data.registrations.filter(r => r.studentId === currentUser.id || r.studentName === currentUser.name || (currentUser.enrollmentNumber && r.studentRoll === currentUser.enrollmentNumber))} applicants={data.applicants.filter(a => a.name === currentUser.name)} events={data.events} clubs={data.clubs} isDarkMode={isDarkMode} />;
+        case 'profile': return <StudentProfile user={userToRender} onSave={handleUpdateUser} isDarkMode={isDarkMode} registrations={data.registrations} applicants={data.applicants} events={data.events} />;
+        case 'recruitment': return <MyApplications applicants={data.applicants} clubs={data.clubs} userName={userToRender.name} isDarkMode={isDarkMode} onUpdateStatus={handleApplicantMove} />;
+        case 'events': return <CampusEvents events={data.events} clubs={data.clubs} registrations={data.registrations} onRegister={handleRegisterEvent} isDarkMode={isDarkMode} user={userToRender} />;
+        case 'my-certificates': return <MyCertificates currentUser={userToRender} batches={data.batches} />;
+        case 'tickets': {
+          const userRegistrations = (data.registrations || []).filter(r => {
+            const sId = String(r.studentId || '').toLowerCase().trim();
+            const cId = String(userToRender.id || '').toLowerCase().trim();
+            const sRoll = String(r.studentRoll || '').toLowerCase().trim();
+            const cRoll = String(userToRender.enrollmentNumber || userToRender.rollNo || '').toLowerCase().trim();
+            const sName = String(r.studentName || '').toLowerCase().trim();
+            const cName = String(userToRender.name || '').toLowerCase().trim();
+            const cEmail = String(userToRender.email || '').toLowerCase().trim();
+
+            return (
+              (cId && sId === cId) ||
+              (cRoll && sRoll === cRoll) ||
+              (cName && sName === cName) ||
+              (cEmail && sId === cEmail)
+            );
+          });
+          return <MyTickets registrations={userRegistrations} events={data.events} clubs={data.clubs} isDarkMode={isDarkMode} />;
+        }
+        case 'payments': {
+          const userRegistrations = (data.registrations || []).filter(r => {
+            const sId = String(r.studentId || '').toLowerCase().trim();
+            const cId = String(userToRender.id || '').toLowerCase().trim();
+            const sRoll = String(r.studentRoll || '').toLowerCase().trim();
+            const cRoll = String(userToRender.enrollmentNumber || userToRender.rollNo || '').toLowerCase().trim();
+            const sName = String(r.studentName || '').toLowerCase().trim();
+            const cName = String(userToRender.name || '').toLowerCase().trim();
+            const cEmail = String(userToRender.email || '').toLowerCase().trim();
+
+            return (
+              (cId && sId === cId) ||
+              (cRoll && sRoll === cRoll) ||
+              (cName && sName === cName) ||
+              (cEmail && sId === cEmail)
+            );
+          });
+          const userApplicants = (data.applicants || []).filter(a => {
+            const sName = String(a.name || '').toLowerCase().trim();
+            const cName = String(userToRender.name || '').toLowerCase().trim();
+            const sRoll = String(a.rollNumber || '').toLowerCase().trim();
+            const cRoll = String(userToRender.enrollmentNumber || userToRender.rollNo || '').toLowerCase().trim();
+            const sEmail = String(a.email || '').toLowerCase().trim();
+            const cEmail = String(userToRender.email || '').toLowerCase().trim();
+            return (cName && sName === cName) || (cRoll && sRoll === cRoll) || (cEmail && sEmail === cEmail);
+          });
+          return <MyPayments registrations={userRegistrations} applicants={userApplicants} events={data.events} clubs={data.clubs} isDarkMode={isDarkMode} />;
+        }
         case 'developers': return renderDevView('console');
         case 'developer-profile': return renderDevView('public');
-        default: return <Navigate to="/dashboard" />;
+        default: return renderDefaultRoleDashboard();
       }
     }
 
@@ -1076,8 +1193,8 @@ const App: React.FC = () => {
     const currentClub = data.clubs.find(c => c.id === activeContext);
     if (!currentClub) return <div>Club Not Found</div>;
 
-    const userClubRole = currentUser.clubMemberships.find(m => m.clubId === activeContext)?.role || null;
-    const isGlobalAdmin = currentUser.globalRole === Role.SUPER_ADMIN || currentUser.globalRole === Role.FACULTY || currentUser.globalRole === Role.DEAN;
+    const userClubRole = (userToRender.clubMemberships || []).find(m => m.clubId === activeContext)?.role || null;
+    const isGlobalAdmin = userToRender.globalRole === Role.SUPER_ADMIN || userToRender.globalRole === Role.FACULTY || userToRender.globalRole === Role.DEAN;
     const isClubAdmin = userClubRole && userClubRole !== ClubRole.MEMBER;
     // Members (any role) can access these tabs; admins get everything
     const memberAllowedTabs = ['website', 'chat', 'club-dashboard', 'attendance'];
@@ -1091,7 +1208,7 @@ const App: React.FC = () => {
           </div>
           <div className="space-y-4 max-w-lg">
             <h2 className={`text-4xl font-black tracking-tighter ${isDarkMode ? 'text-white' : 'text-[#111C44]'}`}>Restricted Access Protocol</h2>
-            <p className="text-[#A3AED0] font-medium text-lg leading-relaxed">Identity marker <strong>{currentUser.name}</strong> lacks the required security clearance for the <strong>{currentClub.name}</strong> governance mainframe.</p>
+            <p className="text-[#A3AED0] font-medium text-lg leading-relaxed">Identity marker <strong>{userToRender.name}</strong> lacks the required security clearance for the <strong>{currentClub.name}</strong> governance mainframe.</p>
           </div>
           <div className="flex gap-4">
             <button onClick={() => navigate(`/club/${activeContext}/website`)} className="px-8 py-4 bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--text-main)] rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#1a202e] transition-all">
@@ -1110,10 +1227,10 @@ const App: React.FC = () => {
 
     switch (activeTab) {
       case 'club-dashboard': return <ClubHome club={currentClub} registrations={clubRegs} />;
-      case 'chat': return <ChatSystem user={currentUser} clubs={data.clubs} events={data.events} registrations={data.registrations} allUsers={data.users} activeContext={activeContext} isDarkMode={isDarkMode} />;
+      case 'chat': return <ChatSystem user={userToRender} clubs={data.clubs} events={data.events} registrations={data.registrations} allUsers={data.users} activeContext={activeContext} isDarkMode={isDarkMode} />;
       case 'members': return <ClubMembers clubId={activeContext} clubName={currentClub?.name || ''} isDarkMode={isDarkMode} clubRole={userClubRole} allUsers={data.users} onUpdateUser={handleUpdateUser} applicants={data.applicants} onAddMember={() => setActiveTab('recruitment')} />;
       case 'attendance': return <AttendanceControl registrations={clubRegs} events={clubEvents} clubName={currentClub.name} onMark={handleMarkAttendance} onFinalize={() => setActiveTab('club-events')} isDarkMode={isDarkMode} allUsers={data.users} onRegister={handleRegisterEvent} />;
-      case 'club-events': return <EventOperations events={clubEvents} venues={data.venues} registrations={clubRegs} onCreateEvent={handleSaveEvent} onDeleteEvent={handleDeleteEvent} onRegister={handleRegisterEvent} onUpdateRegistration={handleUpdateRegistration} isDarkMode={isDarkMode} isDirectApprovalEnabled={userClubRole === ClubRole.PRESIDENT || currentUser.globalRole === Role.FACULTY} clubId={activeContext} />;
+      case 'club-events': return <EventOperations events={clubEvents} venues={data.venues} registrations={clubRegs} onCreateEvent={handleSaveEvent} onDeleteEvent={handleDeleteEvent} onRegister={handleRegisterEvent} onUpdateRegistration={handleUpdateRegistration} isDarkMode={isDarkMode} isDirectApprovalEnabled={userClubRole === ClubRole.PRESIDENT || userToRender.globalRole === Role.FACULTY} clubId={activeContext} />;
       case 'club-finance':
         if (!currentClub) {
           return (
@@ -1131,17 +1248,17 @@ const App: React.FC = () => {
             onUpdateQuotes={(quotes) => handleUpdateClubQuotation(activeContext, quotes)}
             onUpdateQr={(url) => handleUpdateClubQr(activeContext, url)}
             isDarkMode={isDarkMode}
-            isFaculty={currentUser.globalRole === Role.FACULTY || currentUser.globalRole === Role.DEAN || currentUser.globalRole === Role.SUPER_ADMIN}
+            isFaculty={userToRender.globalRole === Role.FACULTY || userToRender.globalRole === Role.DEAN || userToRender.globalRole === Role.SUPER_ADMIN}
           />
         );
       case 'recruitment': return <RecruitmentBoard applicants={data.applicants} onMove={handleApplicantMove} onUpdateDomain={handleApplicantDomainUpdate} clubRole={userClubRole} clubThemeColor={currentClub?.themeColor || '#2563eb'} onNewCycle={() => handleNewRecruitmentCycle(activeContext)} />;
-      case 'certificates': return <CertificationGovernance club={currentClub} registrations={clubRegs} events={clubEvents} batches={data.batches} currentUser={currentUser!} allUsers={data.users} onRefreshBatch={refreshData} />;
+      case 'certificates': return <CertificationGovernance club={currentClub} registrations={clubRegs} events={clubEvents} batches={data.batches} currentUser={userToRender} allUsers={data.users} onRefreshBatch={refreshData} />;
       case 'website': return (
         <ClubPublicWebsite
           club={currentClub}
           events={clubEvents}
           registrations={clubRegs}
-          user={currentUser}
+          user={userToRender}
           members={data.users}
           onRegister={handleRegisterEvent}
           onSubmitApplication={handleNewApplication}
@@ -1159,7 +1276,7 @@ const App: React.FC = () => {
 
   // Main Return wrapped in Routes
   return (
-    <div className={`min-h-screen font-sans selection:bg-[var(--primary)] selection:text-[var(--text-main)] bg-[var(--bg-main)] text-[var(--text-main)] transition-colors duration-500`}>
+    <div className={`min-h-screen font-sans selection:bg-[var(--primary)] selection:text-[var(--text-main)] bg-[var(--bg-main)] text-[var(--text-main)]`}>
 
       <div className="premium-app-backdrop fixed inset-0 pointer-events-none z-0" aria-hidden />
 
@@ -1192,7 +1309,7 @@ const App: React.FC = () => {
                 }
               }
 
-              return authUser ? <Navigate to="/dashboard" replace /> :
+              return (isAuthenticated && activeUser) ? <Navigate to="/dashboard" replace /> :
                 <LandingPage
                   events={data.events}
                   clubs={data.clubs}
@@ -1211,7 +1328,7 @@ const App: React.FC = () => {
           } />
 
           <Route path="/auth" element={
-            authUser ? <Navigate to="/dashboard" replace /> :
+            (isAuthenticated && activeUser) ? <Navigate to="/dashboard" replace /> :
               <JWTAuthPage
                 isDarkMode={isDarkMode}
               />
@@ -1284,9 +1401,9 @@ const App: React.FC = () => {
 
           {/* Dashboard Shell UI Layer */}
           <Route path="/dashboard/*" element={
-            currentUser ? (
+            activeUser ? (
               <DashboardLayout
-                user={currentUser}
+                user={activeUser}
                 clubs={data.clubs}
                 activeContext="Global"
                 activeTab={activeTab}
@@ -1301,6 +1418,13 @@ const App: React.FC = () => {
               >
                 {renderDashboardContent()}
               </DashboardLayout>
+            ) : authLoading ? (
+              <div className="flex h-screen w-full items-center justify-center bg-[#0a1128] text-white">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Loading Workspace...</span>
+                </div>
+              </div>
             ) : <Navigate to="/auth" replace />
           } />
 

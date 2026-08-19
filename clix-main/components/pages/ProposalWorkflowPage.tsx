@@ -63,10 +63,10 @@ export const ProposalWorkflowPage: React.FC<ProposalWorkflowPageProps> = ({
     const [isApproving, setIsApproving] = useState(false);
 
     // ─── STRICT RBAC PERMISSIONS ───────────────────────────────────────────────
-    const role = currentUser?.globalRole;
-    const isDean = role === Role.DEAN || role === 'Dean';
-    const isSuperAdmin = role === Role.SUPER_ADMIN || role === 'Super Admin';
-    const isFaculty = role === Role.FACULTY || role === 'Faculty';
+    const roleStr = String(currentUser?.globalRole || '');
+    const isDean = roleStr === Role.DEAN || roleStr === 'Dean';
+    const isSuperAdmin = roleStr === Role.SUPER_ADMIN || roleStr === 'Super Admin';
+    const isFaculty = roleStr === Role.FACULTY || roleStr === 'Faculty';
     const isStudent = !isDean && !isSuperAdmin && !isFaculty;
 
     // Derived queues

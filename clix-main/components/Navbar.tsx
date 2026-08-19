@@ -119,6 +119,9 @@ const Navbar: React.FC<NavbarProps> = ({
                 onClick={onGoHome}
                 src="/image.png"
                 alt="MITS Logo"
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
                 className="w-10 h-10 rounded-2xl object-cover cursor-pointer shrink-0 shadow-sm border border-[var(--border-color)]"
               />
             )}
@@ -174,7 +177,7 @@ const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               {isNotifOpen && (
-                <div className="absolute right-0 top-full mt-3 w-80 sm:w-96 rounded-3xl border border-white/15 bg-[#090e1c] p-4 z-[1000] shadow-2xl animate-in zoom-in-95 text-slate-100 space-y-3">
+                <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-20 sm:top-full mt-1 sm:mt-3 w-auto sm:w-96 rounded-3xl border border-white/15 bg-[#090e1c] p-4 z-[1000] shadow-2xl animate-in zoom-in-95 text-slate-100 space-y-3">
                   <div className="flex items-center justify-between border-b border-white/10 pb-3">
                     <div className="flex items-center gap-2">
                       <Bell size={16} className="text-blue-400" />

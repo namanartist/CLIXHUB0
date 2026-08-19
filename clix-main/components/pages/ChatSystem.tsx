@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User, Club, Event, Registration, Message, Role } from '../../types';
 import { db } from '../../db';
-import { io, Socket } from 'socket.io-client';
+import { getSocket, syncSocketRooms } from '../../lib/socket';
 import { pushNotificationService } from '../../lib/PushNotificationService';
 import { formatTimeShort } from '../../lib/formatDate';
 import { encryptMessageText, decryptMessageText } from '../../lib/crypto';
-import { notifyChatReceived } from '../../lib/notifications';
 import {
   Search,
   Send,
@@ -60,7 +59,6 @@ const ChatSystem: React.FC<Props> = ({ user, clubs = [], events = [], registrati
   const [search, setSearch] = useState('');
   const [showAttach, setShowAttach] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -138,54 +136,65 @@ const ChatSystem: React.FC<Props> = ({ user, clubs = [], events = [], registrati
     }
   }, [activeContext, allowedClubs, channels]);
 
+  // Persistent always-connected Socket.io event listeners
   useEffect(() => {
-    const isVercel = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app');
-    const configuredApi = import.meta.env.VITE_API_BASE;
-    const targetSocketUrl = configuredApi?.replace('/api', '') || (!isVercel ? (import.meta.env.PROD ? '' : 'http://localhost:4000') : '');
+    const s = syncSocketRooms(user, clubs);
+    if (!s) return;
 
-    let newSocket: Socket | null = null;
-    if (targetSocketUrl) {
-      try {
-        newSocket = io(targetSocketUrl, { transports: ['websocket', 'polling'], timeout: 3000 });
-        setSocket(newSocket);
-        newSocket.on('connect', () => {
-          newSocket?.emit('join', {
-            userId: user.id,
-            clubIds: clubs.map(c => c.id).concat(['institutional'])
-          });
-        });
+    const handleIncomingMessage = (msg: Message) => {
+      if (!msg) return;
 
-        const handleIncomingMessage = (msg: Message) => {
-          if (!msg) return;
-          if (
-            activeChannel &&
-            (msg.clubId === activeChannel.id ||
-              msg.recipientId === activeChannel.id ||
-              msg.senderId === activeChannel.id ||
-              (activeChannel.type === 'club' && msg.clubId === activeChannel.id))
-          ) {
-            setMessages(prev => (prev.find(m => m.id === msg.id) ? prev : [...prev, msg]));
-          } else {
-            const channelId = msg.clubId || msg.senderId;
-            if (channelId) {
-              setUnreadCounts(prev => ({ ...prev, [channelId]: (prev[channelId] || 0) + 1 }));
-            }
-          }
-          if (pushNotificationService.isNotificationEnabled() && msg.senderId !== user.id) {
-            const plain = decryptMessageText(msg.content, msg.clubId || msg.senderId || '');
-            pushNotificationService.notifyMessage(msg.senderName, plain || 'New message');
-          }
-        };
+      const isForActiveChannel =
+        activeChannel &&
+        (msg.clubId === activeChannel.id ||
+          (activeChannel.type === 'dm' && (msg.recipientId === activeChannel.id || msg.senderId === activeChannel.id)) ||
+          (activeChannel.type === 'club' && msg.clubId === activeChannel.id) ||
+          (activeChannel.type === 'event' && msg.clubId === activeChannel.id));
 
-        newSocket.on('receive_message', handleIncomingMessage);
-        newSocket.on('new_message', handleIncomingMessage);
-      } catch (e) {}
-    }
+      if (isForActiveChannel) {
+        setMessages(prev => (prev.find(m => m.id === msg.id) ? prev : [...prev, msg]));
+      } else {
+        const channelId = msg.clubId || (msg.senderId === user.id ? msg.recipientId : msg.senderId);
+        if (channelId) {
+          setUnreadCounts(prev => ({ ...prev, [channelId]: (prev[channelId] || 0) + 1 }));
+        }
+      }
+
+      // STRICT RECIPIENT PUSH NOTIFICATION:
+      // Never notify sender
+      if (msg.senderId === user.id) return;
+
+      // Direct Messages: Strictly notify recipient ONLY
+      if (msg.recipientId) {
+        if (msg.recipientId === user.id && pushNotificationService.isNotificationEnabled()) {
+          const plain = decryptMessageText(msg.content, msg.senderId);
+          pushNotificationService.notifyMessage(msg.senderName, plain || 'New message');
+        }
+        return;
+      }
+
+      // Club / Event message: Only notify subscribed members
+      if (msg.clubId) {
+        const isMember =
+          msg.clubId === 'institutional' ||
+          user.clubMemberships?.some(m => m.clubId === msg.clubId) ||
+          user.globalRole === Role.SUPER_ADMIN;
+
+        if (isMember && pushNotificationService.isNotificationEnabled()) {
+          const plain = decryptMessageText(msg.content, msg.clubId);
+          pushNotificationService.notifyMessage(msg.senderName, plain || 'New message');
+        }
+      }
+    };
+
+    s.on('receive_message', handleIncomingMessage);
+    s.on('new_message', handleIncomingMessage);
 
     return () => {
-      if (newSocket) newSocket.disconnect();
+      s.off('receive_message', handleIncomingMessage);
+      s.off('new_message', handleIncomingMessage);
     };
-  }, [user.id, activeChannel, clubs]);
+  }, [user, activeChannel, clubs]);
 
   useEffect(() => {
     if (!activeChannel) return;
@@ -229,9 +238,12 @@ const ChatSystem: React.FC<Props> = ({ user, clubs = [], events = [], registrati
     setMessages(prev => [...prev, newMsg]);
     setInput('');
     setShowAttach(false);
-    if (socket) socket.emit('send_message', newMsg);
+
+    const s = getSocket();
+    if (s && s.connected) {
+      s.emit('send_message', newMsg);
+    }
     await db.sendMessage(newMsg);
-    notifyChatReceived(user.name, activeChannel.name, unencryptedText || 'Sent attachment');
   };
 
   const formatTime = (ts: string) => formatTimeShort(ts);

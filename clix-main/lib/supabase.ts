@@ -1,4 +1,4 @@
-import { firestore } from './firebase';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
-export const supabase = firestore;
-export default firestore;
+export { supabase, isSupabaseConfigured };
+export default supabase;

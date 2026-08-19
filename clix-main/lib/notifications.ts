@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { Notification } from '../types';
 import { pushNotificationService } from './PushNotificationService';
+import { authService } from './authService';
 
 export async function createSystemNotification({
   title,
@@ -22,6 +23,7 @@ export async function createSystemNotification({
       message,
       type: type as any,
       read: false,
+      timestamp: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       userId,
       link,
@@ -30,8 +32,15 @@ export async function createSystemNotification({
     // Save to database
     await db.sendNotification(notif);
 
-    // Browser Native Push Notification if permitted
-    if (pushNotificationService.isNotificationEnabled()) {
+    // Browser Native Push Notification - STRICTLY ONLY to the intended recipient
+    const currentUser = authService.getUser();
+    const isIntendedRecipient = !!(
+      userId &&
+      currentUser &&
+      (currentUser.id === userId || currentUser.email === userId)
+    );
+
+    if (isIntendedRecipient && pushNotificationService.isNotificationEnabled()) {
       pushNotificationService.showNotification(title, {
         body: message,
         icon: '/image.png',
@@ -121,11 +130,12 @@ export async function notifyProposalApproved(proposalTitle: string, proposerName
   });
 }
 
-export async function notifyProposalRejected(proposalTitle: string, reason?: string) {
+export async function notifyProposalRejected(proposalTitle: string, reason?: string, proposerEmail?: string) {
   await createSystemNotification({
     title: '⚠️ Proposal Review Note',
     message: `Proposal "${proposalTitle}" was declined: ${reason || 'Closed during institutional evaluation'}.`,
     type: 'Proposal',
+    userId: proposerEmail,
     link: '/proposal-workflow',
   });
 }
