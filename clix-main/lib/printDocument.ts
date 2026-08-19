@@ -1,5 +1,5 @@
 /**
- * Print helper — hidden iframe (no pop-up). Waits for images before printing.
+ * Print helper — hidden iframe (no pop-up). Ensures print dialog opens strictly once per page/action.
  */
 
 export interface PrintOptions {
@@ -8,6 +8,9 @@ export interface PrintOptions {
   height?: number;
   delayMs?: number;
 }
+
+let isPrintLocked = false;
+let printLockTimer: number | undefined;
 
 function escapeHtml(text: string): string {
   return text
@@ -68,7 +71,14 @@ ${headStyles}
 
 function printWhenReady(win: Window, baseDelay = 400): void {
   const doc = win.document;
+  let hasPrinted = false;
+  let fallbackTimer: number | undefined;
+
   const run = () => {
+    if (hasPrinted) return;
+    hasPrinted = true;
+    if (fallbackTimer) window.clearTimeout(fallbackTimer);
+
     try {
       win.focus();
       win.print();
@@ -78,6 +88,7 @@ function printWhenReady(win: Window, baseDelay = 400): void {
   };
 
   const waitImages = () => {
+    if (hasPrinted) return;
     const imgs = Array.from(doc.images || []);
     if (imgs.length === 0) {
       window.setTimeout(run, baseDelay);
@@ -86,27 +97,38 @@ function printWhenReady(win: Window, baseDelay = 400): void {
     let left = imgs.length;
     const tick = () => {
       left -= 1;
-      if (left <= 0) window.setTimeout(run, Math.max(baseDelay, 200));
+      if (left <= 0) {
+        window.setTimeout(run, Math.max(baseDelay, 200));
+      }
     };
     imgs.forEach(img => {
-      if (img.complete) tick();
-      else {
-        img.onload = tick;
-        img.onerror = tick;
+      if (img.complete) {
+        tick();
+      } else {
+        img.addEventListener('load', tick, { once: true });
+        img.addEventListener('error', tick, { once: true });
       }
     });
-    window.setTimeout(run, 8000);
+    fallbackTimer = window.setTimeout(run, 4000);
   };
 
-  if (doc.readyState === 'complete') waitImages();
-  else win.addEventListener('load', waitImages);
+  if (doc.readyState === 'complete') {
+    waitImages();
+  } else {
+    win.addEventListener('load', waitImages, { once: true });
+  }
 }
 
 function printViaIframe(fullHtml: string, options: PrintOptions): boolean {
   try {
+    // Remove any previous hidden print iframes
+    const oldIframes = document.querySelectorAll('iframe[data-clix-print="true"]');
+    oldIframes.forEach(el => el.remove());
+
     const iframe = document.createElement('iframe');
     iframe.setAttribute('title', 'Print document');
     iframe.setAttribute('aria-hidden', 'true');
+    iframe.setAttribute('data-clix-print', 'true');
     iframe.style.cssText =
       'position:fixed;left:-9999px;top:0;width:800px;height:600px;border:0;opacity:0;pointer-events:none;';
 
@@ -119,12 +141,17 @@ function printViaIframe(fullHtml: string, options: PrintOptions): boolean {
       return false;
     }
 
+    let cleanedUp = false;
     const cleanup = () => {
-      window.setTimeout(() => iframe.remove(), 2000);
+      if (cleanedUp) return;
+      cleanedUp = true;
+      window.setTimeout(() => {
+        try { iframe.remove(); } catch {}
+      }, 1000);
     };
 
-    win.addEventListener('afterprint', cleanup);
-    window.setTimeout(cleanup, 15000);
+    win.addEventListener('afterprint', cleanup, { once: true });
+    window.setTimeout(cleanup, 12000);
 
     doc.open();
     doc.write(fullHtml);
@@ -151,6 +178,17 @@ function printViaPopup(fullHtml: string, options: PrintOptions): boolean {
 }
 
 export function openPrintWindow(contentHtml: string, title: string, options: PrintOptions = {}): boolean {
+  // Global debounce to prevent accidental double print invocation
+  if (isPrintLocked) {
+    console.warn('[print] Print already triggered, ignoring duplicate request.');
+    return false;
+  }
+  isPrintLocked = true;
+  if (printLockTimer) window.clearTimeout(printLockTimer);
+  printLockTimer = window.setTimeout(() => {
+    isPrintLocked = false;
+  }, 1800);
+
   const fullHtml = buildPrintHtml(contentHtml, title, options);
   if (printViaIframe(fullHtml, options)) return true;
   return printViaPopup(fullHtml, options);
