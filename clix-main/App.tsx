@@ -1558,6 +1558,21 @@ const App: React.FC = () => {
             })()
           } />
 
+          <Route path="/c/:id" element={
+            (() => {
+              const pathParts = location.pathname.split('/');
+              const targetId = pathParts[2];
+              return <Navigate to={`/club/${targetId}/website`} replace />;
+            })()
+          } />
+          <Route path="/c/:id/website" element={
+            (() => {
+              const pathParts = location.pathname.split('/');
+              const targetId = pathParts[2];
+              return <Navigate to={`/club/${targetId}/website`} replace />;
+            })()
+          } />
+
           {/* Club Private Workspace / Dashboard Layer */}
           <Route path="/club/:id/:tab" element={
             currentUser ? (
