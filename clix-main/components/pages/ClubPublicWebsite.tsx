@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Club, Event, User, Applicant, Registration, ClubProject, ClubTeamMember, ClubGalleryItem, ClubAnnouncement, ClubRole } from '../../types';
 import { formatDisplayDate } from '../../lib/formatDate';
 import { getClubTheme } from '../../lib/clubThemes';
+import { getClubSubdomainSlug, getClubSubdomainUrl, copyClubSubdomainUrl } from '../../lib/subdomain';
 import {
   Menu,
   X,
@@ -41,6 +42,7 @@ import {
   Star,
   Compass,
   Check,
+  Copy,
   Sun,
   Moon,
   UserCircle2,
@@ -101,12 +103,25 @@ export const ClubPublicWebsite: React.FC<ClubPublicWebsiteProps> = ({
 
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
   const [appSubmittedMsg, setAppSubmittedMsg] = useState<string | null>(null);
+  const [copiedSubdomain, setCopiedSubdomain] = useState(false);
+
+  // Subdomain Resolution
+  const subdomainSlug = useMemo(() => getClubSubdomainSlug(club), [club]);
+  const subdomainUrl = useMemo(() => getClubSubdomainUrl(club), [club]);
+
+  const handleCopySubdomain = async () => {
+    const success = await copyClubSubdomainUrl(club);
+    if (success) {
+      setCopiedSubdomain(true);
+      setTimeout(() => setCopiedSubdomain(false), 2200);
+    }
+  };
 
   // Theme definition
   const currentTheme = useMemo(() => getClubTheme(club.siteTheme), [club.siteTheme]);
   const isLight = currentTheme.category === 'light';
   const accent = club.themeColor || currentTheme.accent;
-  const customDomain = `${club.subdomain || club.id}.mitsgwl.ac.in`;
+  const customDomain = `${subdomainSlug}.clixhub.in`;
 
   // ─── AUTO-FETCH REAL SYSTEM MEMBERS FROM DATABASE ──────────────────────────
   const systemClubMembers = useMemo(() => {
@@ -281,7 +296,18 @@ export const ClubPublicWebsite: React.FC<ClubPublicWebsiteProps> = ({
                   MITS UNIT
                 </span>
               </div>
-              <p className="text-[10px] sm:text-[11px] font-mono truncate mt-1" style={{ color: currentTheme.textSecondary }}>{customDomain}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <Globe size={11} className="text-cyan-400 shrink-0" />
+                <span className="text-[10px] sm:text-[11px] font-mono truncate" style={{ color: currentTheme.textSecondary }}>{subdomainSlug}.clixhub.in</span>
+                <button
+                  type="button"
+                  onClick={handleCopySubdomain}
+                  title="Copy Subdomain Link"
+                  className="p-0.5 hover:opacity-80 text-slate-400 hover:text-white transition-opacity"
+                >
+                  {copiedSubdomain ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -387,13 +413,31 @@ export const ClubPublicWebsite: React.FC<ClubPublicWebsiteProps> = ({
 
         <div className="relative z-10 w-full grid lg:grid-cols-12 gap-8 sm:gap-12 items-center">
           <div className="lg:col-span-7 space-y-6 sm:space-y-7 text-center lg:text-left">
-            <div
-              className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border backdrop-blur-md"
-              style={{ backgroundColor: currentTheme.surfaceSubtle, borderColor: currentTheme.borderColor }}
-            >
-              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: accent }} />
-              <span className="text-[10px] sm:text-[11px] font-mono font-semibold uppercase tracking-wider" style={{ color: accent }}>{club.category} Division</span>
-              <span className="text-[10px] sm:text-[11px]" style={{ color: currentTheme.textSecondary }}>• MITS Gwalior (Est. 1957)</span>
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5">
+              <div
+                className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border backdrop-blur-md"
+                style={{ backgroundColor: currentTheme.surfaceSubtle, borderColor: currentTheme.borderColor }}
+              >
+                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: accent }} />
+                <span className="text-[10px] sm:text-[11px] font-mono font-semibold uppercase tracking-wider" style={{ color: accent }}>{club.category} Division</span>
+                <span className="text-[10px] sm:text-[11px]" style={{ color: currentTheme.textSecondary }}>• MITS Gwalior (Est. 1957)</span>
+              </div>
+
+              <div
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border backdrop-blur-md text-[11px] font-mono font-bold"
+                style={{ backgroundColor: currentTheme.surfaceSubtle, borderColor: currentTheme.borderColor, color: currentTheme.textPrimary }}
+              >
+                <Globe size={13} className="text-cyan-400 shrink-0" />
+                <span>{subdomainSlug}.clixhub.in</span>
+                <button
+                  type="button"
+                  onClick={handleCopySubdomain}
+                  title="Copy Subdomain Link"
+                  className="p-1 rounded-md hover:bg-white/10 text-slate-400 hover:text-white transition-colors ml-0.5"
+                >
+                  {copiedSubdomain ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                </button>
+              </div>
             </div>
 
             <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.08]" style={{ color: currentTheme.textPrimary }}>
