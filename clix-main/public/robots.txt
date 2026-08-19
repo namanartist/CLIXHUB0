@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /clubs
+Allow: /events
+Allow: /auth
+Allow: /developers
+
+Disallow: /dashboard/
+Disallow: /api/
+
+Sitemap: https://clixhub.in/sitemap.xml
