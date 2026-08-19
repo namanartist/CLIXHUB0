@@ -13,7 +13,7 @@ import Footer from './components/Footer';
 import JWTAuthPage from './components/pages/JWTAuthPage';
 import LandingPage from './components/pages/LandingPage';
 import { db } from './db';
-import { ShieldAlert, Zap } from 'lucide-react';
+import { ShieldAlert, Zap, Globe } from 'lucide-react';
 import { DashboardLayout } from './components/layouts/DashboardLayout';
 import { getBaseRole } from './components/Sidebar/PerspectiveSwitcher';
 
@@ -1273,6 +1273,86 @@ const App: React.FC = () => {
   };
 
 
+
+  // ─── STRICT SUBDOMAIN ISOLATION: SHOW ONLY CLUB WEBPAGE ON SUBDOMAINS ───
+  if (detectedSubdomain) {
+    const subClean = detectedSubdomain.toLowerCase().trim();
+    const subdomainClub = data.clubs.find(c =>
+      (c.subdomain && c.subdomain.toLowerCase() === subClean) ||
+      c.id.toLowerCase() === subClean ||
+      c.id.toLowerCase() === `club-${subClean}`
+    );
+
+    if (subdomainClub) {
+      const clubEvents = data.events.filter(e => e.clubId === subdomainClub.id);
+      const clubRegs = data.registrations.filter(r => clubEvents.some(e => e.id === r.eventId));
+
+      return (
+        <div className={`min-h-screen font-sans selection:bg-[var(--primary)] selection:text-[var(--text-main)] bg-[var(--bg-main)] text-[var(--text-main)]`}>
+          <Routes>
+            <Route
+              path="/register/event/:eventId"
+              element={
+                <EventRegistrationPage
+                  events={clubEvents}
+                  clubs={[subdomainClub]}
+                  registrations={clubRegs}
+                  user={currentUser}
+                  onRegister={handleRegisterEvent}
+                />
+              }
+            />
+            <Route
+              path="*"
+              element={
+                <ClubPublicWebsite
+                  club={subdomainClub}
+                  events={clubEvents}
+                  registrations={clubRegs}
+                  user={currentUser}
+                  members={data.users}
+                  onRegister={handleRegisterEvent}
+                  onSubmitApplication={handleNewApplication}
+                  onSignIn={() => navigate(`/auth?returnTo=${encodeURIComponent(location.pathname)}`)}
+                  showDashboardLink={!!currentUser}
+                  onOpenDashboard={() => navigate('/dashboard')}
+                />
+              }
+            />
+          </Routes>
+        </div>
+      );
+    } else {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-[#030712] text-slate-100 p-6">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#090e1c]/95 p-8 text-center space-y-5 shadow-2xl backdrop-blur-xl animate-in zoom-in-95">
+            <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto">
+              <Globe size={32} />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black text-white tracking-tight">
+                Club Subdomain Not Found
+              </h2>
+              <p className="text-xs text-slate-400 leading-relaxed font-mono">
+                "{detectedSubdomain}.clixhub.in" is not associated with an active club.
+              </p>
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = window.location.protocol + '//' + (window.location.hostname.includes('localhost') ? 'localhost:3000' : 'clixhub.in');
+                }}
+                className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-600/30 transition-all active:scale-95"
+              >
+                Go to Main Campus Hub
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
 
   // Main Return wrapped in Routes
   return (
