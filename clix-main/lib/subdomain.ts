@@ -1,10 +1,12 @@
 /**
  * Subdomain Detection & Routing Utility
- * Detects custom subdomains like `acm.clixhub.in`, `robotics.clixhub.in`,
- * or `?subdomain=acm` in development.
+ * Detects custom subdomains like `clubname.clixmits.vercel.app`
+ * or `?subdomain=clubname` in development.
  */
 
 import { Club } from '../types';
+
+export const PRIMARY_DOMAIN = 'clixmits.vercel.app';
 
 export function getSubdomain(): string | null {
   if (typeof window === 'undefined') return null;
@@ -24,11 +26,20 @@ export function getSubdomain(): string | null {
   }
 
   // 3. Hostname parsing
-  const hostname = window.location.hostname;
+  const hostname = window.location.hostname?.toLowerCase();
   if (!hostname) return null;
 
-  // Ignore raw IP addresses or standalone localhost
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+  // Ignore raw IP addresses, standalone localhost, or main vercel root domain
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === PRIMARY_DOMAIN) {
+    return null;
+  }
+
+  // Vercel subdomain check: e.g. acm.clixmits.vercel.app
+  if (hostname.endsWith(`.${PRIMARY_DOMAIN}`)) {
+    const sub = hostname.replace(`.${PRIMARY_DOMAIN}`, '').toLowerCase().trim();
+    if (sub && sub !== 'www' && sub !== 'app' && sub !== 'api') {
+      return sub;
+    }
     return null;
   }
 
@@ -41,11 +52,10 @@ export function getSubdomain(): string | null {
     return null;
   }
 
-  // Production hostnames: e.g. acm.clixhub.in or acm.mitsgwl.ac.in
+  // General multi-level hostnames: e.g. acm.clixmits.vercel.app
   if (parts.length >= 3) {
     const sub = parts[0].toLowerCase();
-    // Exclude system subdomains
-    if (sub !== 'www' && sub !== 'app' && sub !== 'api' && sub !== 'admin' && sub !== 'mail') {
+    if (sub !== 'www' && sub !== 'app' && sub !== 'api' && sub !== 'admin' && sub !== 'mail' && sub !== 'clixmits') {
       return sub;
     }
   }
@@ -64,7 +74,7 @@ export function getClubSubdomainSlug(club: Club | { id: string; subdomain?: stri
 }
 
 /**
- * Generates the full subdomain URL (e.g., https://acm.clixhub.in)
+ * Generates the full subdomain URL (e.g., https://acm.clixmits.vercel.app)
  */
 export function getClubSubdomainUrl(club: Club | string): string {
   const slug = typeof club === 'string' ? club.toLowerCase().replace(/^club-/, '') : getClubSubdomainSlug(club);
@@ -74,14 +84,8 @@ export function getClubSubdomainUrl(club: Club | string): string {
     if (isLocalhost) {
       return `${window.location.protocol}//${slug}.localhost:${window.location.port || '3000'}`;
     }
-    // Production domain
-    const hostParts = window.location.hostname.split('.');
-    if (hostParts.length >= 2) {
-      const baseDomain = hostParts.slice(-2).join('.');
-      return `https://${slug}.${baseDomain}`;
-    }
   }
-  return `https://${slug}.clixhub.in`;
+  return `https://${slug}.${PRIMARY_DOMAIN}`;
 }
 
 /**

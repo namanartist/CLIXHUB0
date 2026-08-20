@@ -121,7 +121,7 @@ export const ClubPublicWebsite: React.FC<ClubPublicWebsiteProps> = ({
   const currentTheme = useMemo(() => getClubTheme(club.siteTheme), [club.siteTheme]);
   const isLight = currentTheme.category === 'light';
   const accent = club.themeColor || currentTheme.accent;
-  const customDomain = `${subdomainSlug}.clixhub.in`;
+  const customDomain = `${subdomainSlug}.clixmits.vercel.app`;
 
   // ─── AUTO-FETCH REAL SYSTEM MEMBERS FROM DATABASE ──────────────────────────
   const systemClubMembers = useMemo(() => {
@@ -298,7 +298,7 @@ export const ClubPublicWebsite: React.FC<ClubPublicWebsiteProps> = ({
               </div>
               <div className="flex items-center gap-1.5 mt-1">
                 <Globe size={11} className="text-cyan-400 shrink-0" />
-                <span className="text-[10px] sm:text-[11px] font-mono truncate" style={{ color: currentTheme.textSecondary }}>{subdomainSlug}.clixhub.in</span>
+                <span className="text-[10px] sm:text-[11px] font-mono truncate" style={{ color: currentTheme.textSecondary }}>{subdomainSlug}.clixmits.vercel.app</span>
                 <button
                   type="button"
                   onClick={handleCopySubdomain}
@@ -428,7 +428,7 @@ export const ClubPublicWebsite: React.FC<ClubPublicWebsiteProps> = ({
                 style={{ backgroundColor: currentTheme.surfaceSubtle, borderColor: currentTheme.borderColor, color: currentTheme.textPrimary }}
               >
                 <Globe size={13} className="text-cyan-400 shrink-0" />
-                <span>{subdomainSlug}.clixhub.in</span>
+                <span>{subdomainSlug}.clixmits.vercel.app</span>
                 <button
                   type="button"
                   onClick={handleCopySubdomain}

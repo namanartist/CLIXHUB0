@@ -180,7 +180,7 @@ const GlobalClubs: React.FC<Props> = ({ clubs, isDarkMode, onEnterClub, onBack }
                       <div className="flex items-center gap-1.5 min-w-0">
                         <Globe size={13} className="text-cyan-400 shrink-0" />
                         <span className="font-mono text-[11px] font-bold text-slate-300 truncate">
-                          {slug}.clixhub.in
+                          {slug}.clixmits.vercel.app
                         </span>
                       </div>
 

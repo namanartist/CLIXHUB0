@@ -91,7 +91,7 @@ const ClubDirectoryPublic: React.FC<Props> = ({ clubs, onEnterClub, isDarkMode, 
             <span>
               Subdomain Access:{' '}
               <span className="text-white font-mono font-bold bg-white/10 px-2 py-0.5 rounded-md">
-                [clubname].clixhub.in
+                [clubname].clixmits.vercel.app
               </span>
             </span>
           </div>
@@ -237,7 +237,7 @@ const ClubDirectoryPublic: React.FC<Props> = ({ clubs, onEnterClub, isDarkMode, 
                       <div className="flex items-center gap-2 min-w-0">
                         <Globe size={14} className="text-cyan-400 shrink-0" />
                         <span className="font-mono text-[11px] font-bold text-slate-300 truncate">
-                          {slug}.clixhub.in
+                          {slug}.clixmits.vercel.app
                         </span>
                       </div>
 

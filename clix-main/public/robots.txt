@@ -1,3 +1,4 @@
+.
 User-agent: *
 Allow: /
 Allow: /clubs
@@ -8,4 +9,4 @@ Allow: /developers
 Disallow: /dashboard/
 Disallow: /api/
 
-Sitemap: https://clixhub.in/sitemap.xml
+Sitemap: https://clixmits.vercel.app/sitemap.xml

@@ -163,7 +163,7 @@ const App: React.FC = () => {
       if (b) offlineBatches = JSON.parse(b);
       const p = localStorage.getItem('ccms_offline_proposals');
       if (p) offlineProposals = JSON.parse(p);
-    } catch {}
+    } catch { }
 
     return {
       users: offlineUsers.length ? offlineUsers : DEMO_USERS,
@@ -919,7 +919,7 @@ const App: React.FC = () => {
         await db.addClub(newClub);
 
         // Update proposer user membership in memory and database if found
-        const proposerUser = data.users.find(u => 
+        const proposerUser = data.users.find(u =>
           (proposal.proposerEmail && u.email?.toLowerCase() === proposal.proposerEmail.toLowerCase()) ||
           (proposal.proposerRoll && (u.enrollmentNumber === proposal.proposerRoll || u.rollNumber === proposal.proposerRoll || u.enrollmentNo === proposal.proposerRoll)) ||
           (u.name.toLowerCase() === proposal.proposerName.toLowerCase())
